@@ -1,0 +1,296 @@
+<script>
+  Router.add('admin', guardRoute(['admin'], renderAdmin));
+
+  var _adminData = null;
+  var _adminTab = 'overview';
+  var ROLE_LABELS = { participant: 'ผู้ส่งผลงาน', judge: 'กรรมการ', admin: 'ผู้ดูแลระบบ' };
+
+  function renderAdmin() {
+    setLoading();
+    authApi('getDashboard').then(function (data) {
+      _adminData = data;
+      renderAdminShell();
+    }).catch(toastError);
+  }
+
+  function renderAdminShell() {
+    setView(
+      '<h3 class="fw-bold mb-3">แดชบอร์ดผู้ดูแลระบบ</h3>' +
+      '<ul class="nav nav-pills mb-4" id="adminTabs">' +
+        adminTabButton('overview', 'ภาพรวม') +
+        adminTabButton('submissions', 'ผลงาน & รางวัล') +
+        adminTabButton('users', 'ผู้ใช้งาน') +
+        adminTabButton('settings', 'ตั้งค่าระบบ') +
+      '</ul>' +
+      '<div id="adminTabContent"></div>'
+    );
+    document.querySelectorAll('#adminTabs [data-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function () { _adminTab = btn.getAttribute('data-tab'); renderAdminShell(); });
+    });
+    renderAdminTabContent();
+  }
+
+  function adminTabButton(key, label) {
+    return '<li class="nav-item"><button type="button" class="nav-link' + (_adminTab === key ? ' active' : '') + '" data-tab="' + key + '">' + esc(label) + '</button></li>';
+  }
+
+  function renderAdminTabContent() {
+    var container = document.getElementById('adminTabContent');
+    if (_adminTab === 'overview') {
+      container.innerHTML = renderOverviewTab(_adminData);
+      bindOverviewTab();
+    } else if (_adminTab === 'submissions') {
+      container.innerHTML = renderSubmissionsTab(_adminData);
+      bindSubmissionsTab();
+    } else if (_adminTab === 'users') {
+      container.innerHTML = renderUsersTab(_adminData);
+      bindUsersTab();
+    } else if (_adminTab === 'settings') {
+      container.innerHTML = renderSettingsTab(_adminData);
+      bindSettingsTab();
+    }
+  }
+
+  function statCard(label, value, icon) {
+    return '<div class="col-6 col-md-3"><div class="card card-item text-center py-3">' +
+      '<i class="bi ' + icon + ' fs-3 text-primary"></i><div class="fs-4 fw-bold">' + value + '</div>' +
+      '<div class="text-muted small">' + esc(label) + '</div></div></div>';
+  }
+
+  function renderOverviewTab(data) {
+    var c = data.counts;
+    var publishBtn = data.config.allowPublic
+      ? '<button class="btn btn-outline-secondary" id="btnTogglePublish"><i class="bi bi-eye-slash"></i> ปิดการเผยแพร่สู่สาธารณะ</button>'
+      : '<button class="btn btn-primary" id="btnTogglePublish"><i class="bi bi-megaphone-fill"></i> เผยแพร่ผลงานทั้งหมดสู่สาธารณะ</button>';
+
+    return '<div class="row g-3 mb-4">' +
+        statCard('ผู้ใช้งานทั้งหมด', c.users, 'bi-people-fill') +
+        statCard('กรรมการ', c.judges, 'bi-clipboard-check-fill') +
+        statCard('ผลงานที่ส่งแล้ว', c.submitted, 'bi-send-fill') +
+        statCard('เผยแพร่แล้ว', c.published, 'bi-globe2') +
+      '</div>' +
+      '<div class="card card-item"><div class="card-body">' +
+        '<h5>สถานะการเผยแพร่สาธารณะ</h5>' +
+        '<p class="text-muted">เมื่อกดเผยแพร่ ผลงานทุกชิ้นที่มีสถานะ "ส่งแล้ว" จะเปลี่ยนเป็น "เผยแพร่แล้ว" และแสดงในหน้าแรกทันที (คะแนนกรรมการจะไม่แสดงต่อสาธารณะเสมอ)</p>' +
+        publishBtn +
+      '</div></div>';
+  }
+
+  function bindOverviewTab() {
+    var btn = document.getElementById('btnTogglePublish');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var turningOn = !_adminData.config.allowPublic;
+      var msg = turningOn
+        ? 'ยืนยันเผยแพร่ผลงานที่ "ส่งแล้ว" ทั้งหมดสู่สาธารณะ? การกระทำนี้จะแสดงผลงานในหน้าแรกทันที'
+        : 'ยืนยันปิดการเผยแพร่สู่สาธารณะ?';
+      if (!confirm(msg)) return;
+      btn.disabled = true;
+      authApi('setPublishState', turningOn).then(function (res) {
+        _adminData = res;
+        toast(turningOn ? 'เผยแพร่ผลงานสู่สาธารณะแล้ว' : 'ปิดการเผยแพร่แล้ว', 'success');
+        renderAdminShell();
+      }).catch(function (err) { toastError(err); btn.disabled = false; });
+    });
+  }
+
+  function submissionRowHtml(item) {
+    var awardOptions = ['', 'รางวัลที่ 1', 'รางวัลที่ 2', 'รางวัลที่ 3', 'รางวัลชมเชย'].map(function (opt) {
+      return '<option value="' + esc(opt) + '"' + (item.awardStatus === opt ? ' selected' : '') + '>' + (opt || '— ไม่ได้รับรางวัล —') + '</option>';
+    }).join('');
+    var statusAction = item.status !== 'published'
+      ? '<button class="btn btn-sm btn-outline-secondary" data-force-status="published" data-id="' + esc(item.submissionId) + '">เผยแพร่รายการนี้</button>'
+      : '<button class="btn btn-sm btn-outline-secondary" data-force-status="submitted" data-id="' + esc(item.submissionId) + '">ยกเลิกเผยแพร่</button>';
+
+    return '<tr>' +
+      '<td>' + esc(item.title) + '<div class="text-muted small">' + esc(item.categoryLabel || item.category) + '</div></td>' +
+      '<td><span class="badge bg-' + (STATUS_BADGE[item.status] || 'secondary') + '">' + esc(STATUS_LABELS[item.status] || item.status) + '</span></td>' +
+      '<td>' + (item.averageScore != null ? item.averageScore.toFixed(1) : '-') + ' <span class="text-muted small">(' + item.judgeCount + ' กรรมการ)</span></td>' +
+      '<td><select class="form-select form-select-sm" data-award="' + esc(item.submissionId) + '">' + awardOptions + '</select></td>' +
+      '<td>' + statusAction + '</td>' +
+    '</tr>';
+  }
+
+  function renderSubmissionsTab(data) {
+    var rows = data.submissions.map(submissionRowHtml).join('');
+    return '<div class="table-responsive"><table class="table align-middle bg-white rounded shadow-sm">' +
+      '<thead><tr><th>ผลงาน</th><th>สถานะ</th><th>คะแนนเฉลี่ย</th><th>รางวัล</th><th></th></tr></thead>' +
+      '<tbody>' + (rows || '<tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีผลงาน</td></tr>') + '</tbody>' +
+    '</table></div>';
+  }
+
+  function bindSubmissionsTab() {
+    document.querySelectorAll('[data-award]').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        authApi('setAward', sel.getAttribute('data-award'), sel.value).then(function (res) {
+          _adminData = res;
+          toast('บันทึกรางวัลแล้ว', 'success');
+        }).catch(toastError);
+      });
+    });
+    document.querySelectorAll('[data-force-status]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        authApi('setSubmissionStatus', btn.getAttribute('data-id'), btn.getAttribute('data-force-status')).then(function (res) {
+          _adminData = res;
+          toast('อัปเดตสถานะแล้ว', 'success');
+          renderAdminTabContent();
+        }).catch(toastError);
+      });
+    });
+  }
+
+  function userRowHtml(user, categories) {
+    var categoryLabel = user.role === 'judge'
+      ? esc((categories.find(function (c) { return c.id === user.assignedCategory; }) || {}).label || user.assignedCategory)
+      : '-';
+    return '<tr>' +
+      '<td>' + esc(user.displayName) + '<div class="text-muted small">@' + esc(user.username) + '</div></td>' +
+      '<td><span class="badge bg-secondary">' + esc(ROLE_LABELS[user.role] || user.role) + '</span></td>' +
+      '<td>' + categoryLabel + '</td>' +
+      '<td>' + esc(user.organization || '-') + '</td>' +
+      '<td><button class="btn btn-sm btn-outline-primary" data-edit-user="' + esc(user.username) + '">แก้ไข</button></td>' +
+    '</tr>';
+  }
+
+  function renderUsersTab(data) {
+    var rows = data.users.map(function (u) { return userRowHtml(u, data.config.categories); }).join('');
+    return '<div class="d-flex justify-content-between align-items-center mb-3">' +
+        '<h5 class="mb-0">รายชื่อผู้ใช้งาน</h5>' +
+        '<button class="btn btn-primary btn-sm" id="btnNewUser"><i class="bi bi-plus-lg"></i> เพิ่มกรรมการ/ผู้ดูแล</button>' +
+      '</div>' +
+      '<div class="table-responsive"><table class="table align-middle bg-white rounded shadow-sm">' +
+        '<thead><tr><th>ชื่อผู้ใช้</th><th>บทบาท</th><th>ประเด็นที่รับผิดชอบ</th><th>หน่วยงาน</th><th></th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table></div>' +
+      '<div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content" id="userModalContent"></div></div></div>';
+  }
+
+  function categorySelectOptions(categories, selected) {
+    return categories.map(function (c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === selected ? ' selected' : '') + '>' + esc(c.label) + '</option>';
+    }).join('');
+  }
+
+  function openUserModal(username) {
+    var user = username ? _adminData.users.find(function (u) { return u.username === username; }) : null;
+    var categories = _adminData.config.categories;
+
+    document.getElementById('userModalContent').innerHTML =
+      '<div class="modal-header"><h5 class="modal-title">' + (user ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มกรรมการ / ผู้ดูแลระบบ') + '</h5>' +
+        '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+      '<div class="modal-body">' +
+        '<form id="userForm">' +
+          '<div class="mb-3"><label class="form-label">ชื่อ-นามสกุล</label><input class="form-control" name="displayName" required value="' + esc(user ? user.displayName : '') + '"></div>' +
+          '<div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" required minlength="4" value="' + esc(user ? user.username : '') + '"' + (user ? ' readonly' : '') + '></div>' +
+          '<div class="mb-3"><label class="form-label">อีเมล</label><input type="email" class="form-control" name="email" value="' + esc(user ? user.email : '') + '"></div>' +
+          '<div class="mb-3"><label class="form-label">หน่วยงาน</label><input class="form-control" name="organization" value="' + esc(user ? user.organization : '') + '"></div>' +
+          '<div class="mb-3"><label class="form-label">บทบาท</label><select class="form-select" name="role" id="roleSelect">' +
+            ['judge', 'admin', 'participant'].map(function (r) { return '<option value="' + r + '"' + ((user ? user.role : 'judge') === r ? ' selected' : '') + '>' + esc(ROLE_LABELS[r]) + '</option>'; }).join('') +
+          '</select></div>' +
+          '<div class="mb-3" id="categoryFieldWrap"' + ((user ? user.role : 'judge') !== 'judge' ? ' style="display:none"' : '') + '>' +
+            '<label class="form-label">ประเด็นที่รับผิดชอบ (สำหรับกรรมการ)</label>' +
+            '<select class="form-select" name="assignedCategory">' + categorySelectOptions(categories, user ? user.assignedCategory : '') + '</select></div>' +
+          '<div class="mb-3"><label class="form-label">' + (user ? 'ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)' : 'รหัสผ่านเริ่มต้น') + '</label>' +
+            '<input type="password" class="form-control" name="password"' + (user ? '' : ' required') + ' minlength="8"></div>' +
+        '</form>' +
+      '</div>' +
+      '<div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>' +
+        '<button class="btn btn-primary" id="btnSaveUser">บันทึก</button></div>';
+
+    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal'));
+    modal.show();
+
+    document.getElementById('roleSelect').addEventListener('change', function () {
+      document.getElementById('categoryFieldWrap').style.display = this.value === 'judge' ? '' : 'none';
+    });
+
+    document.getElementById('btnSaveUser').addEventListener('click', function () {
+      var form = document.getElementById('userForm');
+      if (!form.reportValidity()) return;
+      var payload = Object.fromEntries(new FormData(form).entries());
+      if (!payload.password) delete payload.password;
+      var btn = this;
+      btn.disabled = true;
+      authApi('manageUser', payload).then(function (res) {
+        _adminData = res;
+        toast('บันทึกผู้ใช้งานแล้ว', 'success');
+        modal.hide();
+        renderAdminTabContent();
+      }).catch(function (err) { toastError(err); btn.disabled = false; });
+    });
+  }
+
+  function bindUsersTab() {
+    document.getElementById('btnNewUser').addEventListener('click', function () { openUserModal(null); });
+    document.querySelectorAll('[data-edit-user]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openUserModal(btn.getAttribute('data-edit-user')); });
+    });
+  }
+
+  function renderSettingsTab(data) {
+    var config = data.config;
+    var categoryFields = config.categories.map(function (c, i) {
+      return '<div class="col-md-4"><label class="form-label">ประเด็นที่ ' + (i + 1) + '</label>' +
+        '<input class="form-control" data-cat-label="' + i + '" value="' + esc(c.label) + '"></div>';
+    }).join('');
+
+    var criteriaRows = config.criteria.map(function (c, i) {
+      return '<tr>' +
+        '<td><input class="form-control form-control-sm" data-crit-label="' + i + '" value="' + esc(c.label) + '"></td>' +
+        '<td style="width:110px"><input type="number" min="1" class="form-control form-control-sm" data-crit-max="' + i + '" value="' + c.maxScore + '"></td>' +
+        '<td style="width:80px" class="text-center"><input type="checkbox" class="form-check-input" data-crit-active="' + i + '"' + (c.active ? ' checked' : '') + '></td>' +
+      '</tr>';
+    }).join('');
+
+    return '<div class="card card-item mb-4"><div class="card-body">' +
+        '<h5>ตั้งค่าทั่วไป</h5>' +
+        '<div class="row g-3 mb-3">' +
+          '<div class="col-md-6"><label class="form-label">ชื่อระบบ</label><input class="form-control" id="settingAppName" value="' + esc(config.appName) + '"></div>' +
+          '<div class="col-md-6 d-flex align-items-end"><div class="form-check form-switch">' +
+            '<input class="form-check-input" type="checkbox" id="settingAllowSubmission"' + (config.allowSubmission ? ' checked' : '') + '>' +
+            '<label class="form-check-label" for="settingAllowSubmission">เปิดรับ/แก้ไขผลงาน</label></div></div>' +
+        '</div>' +
+        '<h6>ประเด็นการประกวด (3 ประเด็น)</h6>' +
+        '<div class="row g-3 mb-4">' + categoryFields + '</div>' +
+        '<h6>เกณฑ์การให้คะแนน</h6>' +
+        '<div class="table-responsive"><table class="table table-sm align-middle">' +
+          '<thead><tr><th>เกณฑ์</th><th>คะแนนเต็ม</th><th class="text-center">ใช้งาน</th></tr></thead>' +
+          '<tbody>' + criteriaRows + '</tbody>' +
+        '</table></div>' +
+        '<button class="btn btn-primary" id="btnSaveSettings"><i class="bi bi-save"></i> บันทึกการตั้งค่า</button>' +
+      '</div></div>';
+  }
+
+  function bindSettingsTab() {
+    document.getElementById('btnSaveSettings').addEventListener('click', function () {
+      var btn = this;
+      var config = _adminData.config;
+      var categories = config.categories.map(function (c, i) {
+        var input = document.querySelector('[data-cat-label="' + i + '"]');
+        return { id: c.id, label: input ? input.value : c.label, status: 'active' };
+      });
+      var criteria = config.criteria.map(function (c, i) {
+        var labelInput = document.querySelector('[data-crit-label="' + i + '"]');
+        var maxInput = document.querySelector('[data-crit-max="' + i + '"]');
+        var activeInput = document.querySelector('[data-crit-active="' + i + '"]');
+        return {
+          label: labelInput ? labelInput.value : c.label,
+          maxScore: maxInput ? Number(maxInput.value) : c.maxScore,
+          active: activeInput ? activeInput.checked : c.active
+        };
+      });
+      var payload = {
+        appName: document.getElementById('settingAppName').value,
+        allowSubmission: document.getElementById('settingAllowSubmission').checked,
+        categories: categories,
+        criteria: criteria
+      };
+      btn.disabled = true;
+      authApi('saveSystemSettings', payload).then(function (res) {
+        _adminData = res;
+        toast('บันทึกการตั้งค่าแล้ว', 'success');
+        renderAdminTabContent();
+      }).catch(function (err) { toastError(err); btn.disabled = false; });
+    });
+  }
+</script>

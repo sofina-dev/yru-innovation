@@ -1,0 +1,124 @@
+<script>
+  Router.add('submit', guardRoute(['participant', 'admin'], renderSubmitForm));
+  Router.add('my', guardRoute(['participant', 'admin'], renderMySubmissions));
+
+  var _pendingAttachment = null;
+
+  function categorySelectHtml(categories, selected) {
+    return '<option value="">-- เลือกประเด็น --</option>' + categories.map(function (c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === selected ? ' selected' : '') + '>' + esc(c.label) + '</option>';
+    }).join('');
+  }
+
+  function renderSubmitForm(submissionId) {
+    setLoading();
+    authApi('getMyWorkspace').then(function (data) {
+      _pendingAttachment = null;
+      var existing = submissionId ? data.submissions.find(function (s) { return s.submissionId === submissionId; }) : null;
+      if (submissionId && !existing) {
+        setView('<div class="alert alert-warning">ไม่พบผลงานนี้ หรือไม่ใช่ผลงานของคุณ</div>');
+        return;
+      }
+      if (existing && existing.status !== 'draft' && data.user.role !== 'admin') {
+        toast('ผลงานนี้ถูกส่งแล้ว ไม่สามารถแก้ไขได้', 'warning');
+      }
+
+      setView(
+        '<div class="row justify-content-center"><div class="col-lg-8">' +
+        '<h3 class="fw-bold mb-3">' + (existing ? 'แก้ไขผลงาน' : 'ส่งผลงานนวัตกรรมใหม่') + '</h3>' +
+        (!data.config.allowSubmission ? '<div class="alert alert-warning">ขณะนี้ปิดรับ/ปิดแก้ไขผลงานแล้ว</div>' : '') +
+        '<div class="card card-item"><div class="card-body p-4">' +
+        '<form id="submitForm">' +
+          '<input type="hidden" name="submissionId" value="' + esc(submissionId || '') + '">' +
+          '<div class="mb-3"><label class="form-label">ชื่อผลงาน</label><input class="form-control" name="title" required value="' + esc(existing ? existing.title : '') + '"></div>' +
+          '<div class="mb-3"><label class="form-label">ประเด็นที่ส่งประกวด</label><select class="form-select" name="category" required>' + categorySelectHtml(data.config.categories, existing ? existing.category : '') + '</select></div>' +
+          '<div class="mb-3"><label class="form-label">สภาพปัญหา / ที่มาของแนวคิด</label><textarea class="form-control" name="problemStatement" rows="3">' + esc(existing ? existing.problemStatement : '') + '</textarea></div>' +
+          '<div class="mb-3"><label class="form-label">แนวคิด / วิธีการดำเนินการ</label><textarea class="form-control" name="solutionDescription" rows="3">' + esc(existing ? existing.solutionDescription : '') + '</textarea></div>' +
+          '<div class="mb-3"><label class="form-label">ผลลัพธ์ / ประโยชน์ที่ได้รับ</label><textarea class="form-control" name="impactBenefit" rows="3">' + esc(existing ? existing.impactBenefit : '') + '</textarea></div>' +
+          '<div class="mb-3"><label class="form-label">ไฟล์แนบ (ถ้ามี — ไม่บังคับ)</label><input class="form-control" type="file" id="attachmentInput">' +
+            '<div class="form-text" id="attachmentStatus">' + (existing && existing.attachmentName ? 'ไฟล์ปัจจุบัน: ' + esc(existing.attachmentName) : 'ยังไม่มีไฟล์แนบ') + '</div></div>' +
+          '<div class="d-flex gap-2 mt-4">' +
+            '<button class="btn btn-outline-secondary" type="submit" name="mode" value="draft">บันทึกร่าง</button>' +
+            '<button class="btn btn-primary" type="submit" name="mode" value="submit">ส่งผลงาน</button>' +
+          '</div>' +
+        '</form>' +
+        '</div></div></div></div>'
+      );
+
+      document.getElementById('attachmentInput').addEventListener('change', function (e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { toast('ไฟล์ต้องมีขนาดไม่เกิน 10MB', 'danger'); e.target.value = ''; return; }
+        var statusEl = document.getElementById('attachmentStatus');
+        statusEl.textContent = 'กำลังอัปโหลด ' + file.name + ' ...';
+        var reader = new FileReader();
+        reader.onload = function () {
+          var base64 = reader.result.split(',')[1];
+          authApi('uploadAttachment', base64, file.name, file.type).then(function (res) {
+            _pendingAttachment = res;
+            statusEl.textContent = 'อัปโหลดสำเร็จ: ' + res.name;
+          }).catch(function (err) { toastError(err); statusEl.textContent = 'อัปโหลดไม่สำเร็จ'; });
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document.getElementById('submitForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var submitter = e.submitter;
+        var mode = submitter ? submitter.value : 'draft';
+        var payload = Object.fromEntries(new FormData(e.target).entries());
+        payload.isDraft = mode === 'draft';
+        if (_pendingAttachment) {
+          payload.attachmentFileId = _pendingAttachment.fileId;
+          payload.attachmentUrl = _pendingAttachment.url;
+          payload.attachmentName = _pendingAttachment.name;
+        }
+        submitter.disabled = true;
+        authApi('saveSubmission', payload).then(function () {
+          toast(mode === 'draft' ? 'บันทึกร่างแล้ว' : 'ส่งผลงานเรียบร้อยแล้ว', 'success');
+          location.hash = '#/my';
+        }).catch(function (err) { toastError(err); submitter.disabled = false; });
+      });
+    }).catch(toastError);
+  }
+
+  function mySubmissionCard(item) {
+    var badge = STATUS_BADGE[item.status] || 'secondary';
+    var award = item.awardStatus ? '<span class="badge badge-award ms-2"><i class="bi bi-trophy-fill me-1"></i>' + esc(item.awardStatus) + '</span>' : '';
+    var actions = item.status === 'draft'
+      ? '<a class="btn btn-sm btn-outline-primary" href="#/submit/' + encodeURIComponent(item.submissionId) + '">แก้ไข</a> ' +
+        '<button class="btn btn-sm btn-outline-danger" data-delete="' + esc(item.submissionId) + '">ลบ</button>'
+      : '<span class="text-muted small">ไม่สามารถแก้ไขได้หลังส่งผลงานแล้ว</span>';
+
+    return '<div class="col-md-6"><div class="card card-item"><div class="card-body">' +
+      '<span class="badge bg-' + badge + ' mb-2">' + esc(STATUS_LABELS[item.status] || item.status) + '</span>' + award +
+      '<h5>' + esc(item.title) + '</h5>' +
+      '<p class="text-muted small mb-2">อัปเดตล่าสุด ' + fmtDate(item.updatedAt) + '</p>' +
+      '<div>' + actions + '</div>' +
+    '</div></div></div>';
+  }
+
+  function renderMySubmissions() {
+    setLoading();
+    authApi('getMyWorkspace').then(function (data) {
+      var list = data.submissions.length
+        ? '<div class="row g-3">' + data.submissions.map(mySubmissionCard).join('') + '</div>'
+        : '<p class="text-muted">คุณยังไม่มีผลงานที่ส่ง <a href="#/submit">ส่งผลงานแรกของคุณ</a></p>';
+      setView(
+        '<div class="d-flex justify-content-between align-items-center mb-3">' +
+          '<h3 class="fw-bold mb-0">ผลงานของฉัน</h3>' +
+          '<a class="btn btn-primary" href="#/submit"><i class="bi bi-plus-lg"></i> ส่งผลงานใหม่</a>' +
+        '</div>' + list
+      );
+      document.querySelectorAll('[data-delete]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('ยืนยันการลบผลงานฉบับร่างนี้?')) return;
+          authApi('deleteSubmission', btn.getAttribute('data-delete')).then(function () {
+            toast('ลบแล้ว', 'secondary');
+            renderMySubmissions();
+          }).catch(toastError);
+        });
+      });
+    }).catch(toastError);
+  }
+</script>

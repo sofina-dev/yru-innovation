@@ -1,0 +1,87 @@
+<script>
+  Router.add('judge', guardRoute(['judge', 'admin'], renderJudgeList));
+
+  var _judgeCriteria = [];
+
+  function judgeCardHtml(item) {
+    var scoredBadge = item.isScored
+      ? '<span class="badge bg-success ms-2"><i class="bi bi-check-circle-fill"></i> ให้คะแนนแล้ว</span>'
+      : '<span class="badge bg-warning text-dark ms-2">รอให้คะแนน</span>';
+    return '<div class="col-md-6"><div class="card card-item"><div class="card-body">' +
+      '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' + scoredBadge +
+      '<h5>' + esc(item.title) + '</h5>' +
+      '<p class="text-muted small">' + esc((item.problemStatement || '').slice(0, 140)) + '</p>' +
+      (item.attachmentUrl ? '<a class="d-block small mb-2" target="_blank" rel="noopener" href="' + esc(item.attachmentUrl) + '"><i class="bi bi-paperclip"></i> ' + esc(item.attachmentName || 'เอกสารแนบ') + '</a>' : '') +
+      '<button class="btn btn-primary btn-sm" data-score="' + esc(item.submissionId) + '">' + (item.isScored ? 'แก้ไขคะแนน' : 'ให้คะแนน') + '</button>' +
+    '</div></div></div>';
+  }
+
+  function renderJudgeList() {
+    setLoading();
+    authApi('getAssignedSubmissions').then(function (data) {
+      _judgeCriteria = data.criteria;
+      window._judgeSubmissions = data.submissions;
+      var list = data.submissions.length
+        ? '<div class="row g-3">' + data.submissions.map(judgeCardHtml).join('') + '</div>'
+        : '<p class="text-muted">ยังไม่มีผลงานในประเด็นที่คุณรับผิดชอบ</p>';
+      setView(
+        '<h3 class="fw-bold mb-1">ผลงานที่ต้องประเมิน</h3>' +
+        '<p class="text-muted mb-3">ประเด็นที่รับผิดชอบ: <strong>' + esc(data.user.assignedCategory) + '</strong></p>' +
+        list +
+        '<div class="modal fade" id="scoreModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content" id="scoreModalContent"></div></div></div>'
+      );
+      document.querySelectorAll('[data-score]').forEach(function (btn) {
+        btn.addEventListener('click', function () { openScoreModal(btn.getAttribute('data-score')); });
+      });
+    }).catch(toastError);
+  }
+
+  function criteriaFieldHtml(criterion, currentValue) {
+    return '<div class="mb-3 criteria-row">' +
+      '<label class="form-label d-flex justify-content-between">' +
+        '<span>' + esc(criterion.label) + '</span><span class="text-muted">เต็ม ' + criterion.maxScore + '</span>' +
+      '</label>' +
+      '<input type="number" class="form-control" name="c_' + esc(criterion.id) + '" min="0" max="' + criterion.maxScore + '" step="1" value="' + (currentValue != null ? currentValue : '') + '" required>' +
+    '</div>';
+  }
+
+  function openScoreModal(submissionId) {
+    var item = (window._judgeSubmissions || []).find(function (s) { return s.submissionId === submissionId; });
+    if (!item) return;
+    var scores = item.myScore ? item.myScore.scores : {};
+    var comment = item.myScore ? item.myScore.comment : '';
+
+    document.getElementById('scoreModalContent').innerHTML =
+      '<div class="modal-header"><h5 class="modal-title">ให้คะแนน: ' + esc(item.title) + '</h5>' +
+        '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+      '<div class="modal-body">' +
+        '<form id="scoreForm">' +
+          _judgeCriteria.map(function (c) { return criteriaFieldHtml(c, scores[c.id]); }).join('') +
+          '<div class="mb-2"><label class="form-label">ความเห็นเพิ่มเติม (ถ้ามี)</label><textarea class="form-control" name="comment" rows="2">' + esc(comment) + '</textarea></div>' +
+        '</form>' +
+      '</div>' +
+      '<div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>' +
+      '<button class="btn btn-primary" id="btnSaveScore">บันทึกคะแนน</button></div>';
+
+    var modalEl = document.getElementById('scoreModal');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    document.getElementById('btnSaveScore').addEventListener('click', function () {
+      var form = document.getElementById('scoreForm');
+      if (!form.reportValidity()) return;
+      var fd = new FormData(form);
+      var scoreValues = {};
+      _judgeCriteria.forEach(function (c) { scoreValues[c.id] = Number(fd.get('c_' + c.id)); });
+      var btn = this;
+      btn.disabled = true;
+      authApi('saveScores', { submissionId: submissionId, scores: scoreValues, comment: fd.get('comment') }).then(function (data) {
+        _judgeCriteria = data.criteria;
+        window._judgeSubmissions = data.submissions;
+        toast('บันทึกคะแนนเรียบร้อยแล้ว', 'success');
+        modal.hide();
+        renderJudgeList();
+      }).catch(function (err) { toastError(err); btn.disabled = false; });
+    });
+  }
+</script>

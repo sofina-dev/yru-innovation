@@ -1,0 +1,83 @@
+<script>
+  Router.add('login', renderAuth);
+
+  function redirectForRole(role) {
+    if (role === 'admin') location.hash = '#/admin';
+    else if (role === 'judge') location.hash = '#/judge';
+    else location.hash = '#/my';
+  }
+
+  function renderAuth() {
+    var user = Store.getUser();
+    if (user) { redirectForRole(user.role); return; }
+
+    setView(
+      '<div class="row justify-content-center">' +
+        '<div class="col-md-7 col-lg-5">' +
+          '<ul class="nav nav-pills mb-3 justify-content-center" id="authTabs">' +
+            '<li class="nav-item"><button type="button" class="nav-link active" data-tab="login">เข้าสู่ระบบ</button></li>' +
+            '<li class="nav-item"><button type="button" class="nav-link" data-tab="register">ลงทะเบียนผู้ส่งผลงาน</button></li>' +
+          '</ul>' +
+          '<div class="card card-item"><div class="card-body p-4"><div id="authPane"></div></div></div>' +
+        '</div>' +
+      '</div>'
+    );
+
+    document.querySelectorAll('#authTabs [data-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('#authTabs [data-tab]').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        renderAuthPane(btn.getAttribute('data-tab'));
+      });
+    });
+    renderAuthPane('login');
+  }
+
+  function renderAuthPane(tab) {
+    var pane = document.getElementById('authPane');
+    if (tab === 'register') {
+      pane.innerHTML =
+        '<form id="registerForm">' +
+          '<div class="mb-3"><label class="form-label">ชื่อ-นามสกุล</label><input class="form-control" name="displayName" required></div>' +
+          '<div class="mb-3"><label class="form-label">หน่วยงาน/สังกัด</label><input class="form-control" name="organization"></div>' +
+          '<div class="mb-3"><label class="form-label">อีเมล</label><input type="email" class="form-control" name="email"></div>' +
+          '<div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" required minlength="4"></div>' +
+          '<div class="mb-3"><label class="form-label">รหัสผ่าน (อย่างน้อย 8 ตัวอักษร)</label><input type="password" class="form-control" name="password" required minlength="8"></div>' +
+          '<button class="btn btn-primary w-100" type="submit">ลงทะเบียน</button>' +
+        '</form>';
+      pane.querySelector('#registerForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var form = e.target;
+        var btn = form.querySelector('button');
+        var payload = Object.fromEntries(new FormData(form).entries());
+        btn.disabled = true;
+        api('register', payload).then(function (res) {
+          Store.set(res.token, res.user);
+          toast('ลงทะเบียนสำเร็จ ยินดีต้อนรับ ' + res.user.displayName, 'success');
+          renderShell();
+          redirectForRole(res.user.role);
+        }).catch(function (err) { toastError(err); btn.disabled = false; });
+      });
+    } else {
+      pane.innerHTML =
+        '<form id="loginForm">' +
+          '<div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" required></div>' +
+          '<div class="mb-3"><label class="form-label">รหัสผ่าน</label><input type="password" class="form-control" name="password" required></div>' +
+          '<button class="btn btn-primary w-100" type="submit">เข้าสู่ระบบ</button>' +
+        '</form>';
+      pane.querySelector('#loginForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var form = e.target;
+        var btn = form.querySelector('button');
+        var payload = Object.fromEntries(new FormData(form).entries());
+        btn.disabled = true;
+        api('login', payload).then(function (res) {
+          Store.set(res.token, res.user);
+          toast('เข้าสู่ระบบสำเร็จ', 'success');
+          renderShell();
+          redirectForRole(res.user.role);
+        }).catch(function (err) { toastError(err); btn.disabled = false; });
+      });
+    }
+  }
+</script>

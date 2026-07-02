@@ -1,0 +1,84 @@
+<script>
+  Router.add('home', renderGallery);
+  Router.add('item', renderDetail);
+
+  function awardBadge(awardStatus) {
+    if (!awardStatus) return '';
+    return '<span class="badge badge-award position-absolute top-0 end-0 m-2"><i class="bi bi-trophy-fill me-1"></i>' + esc(awardStatus) + '</span>';
+  }
+
+  function galleryCardHtml(item) {
+    var excerptSource = item.problemStatement || '';
+    var excerpt = excerptSource.slice(0, 120) + (excerptSource.length > 120 ? '…' : '');
+    return '<div class="col-md-6 col-lg-4">' +
+      '<a href="#/item/' + encodeURIComponent(item.submissionId) + '" class="text-decoration-none text-reset">' +
+      '<div class="card card-item position-relative">' +
+        awardBadge(item.awardStatus) +
+        '<div class="card-body">' +
+          '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' +
+          '<h5 class="card-title">' + esc(item.title) + '</h5>' +
+          '<p class="card-text text-muted small">' + esc(excerpt) + '</p>' +
+        '</div>' +
+      '</div></a></div>';
+  }
+
+  function renderGalleryList(data) {
+    var banner = !data.allowPublic
+      ? '<div class="alert alert-info">ระบบยังไม่เปิดเผยแพร่ผลงานต่อสาธารณะในขณะนี้</div>'
+      : '';
+    var grid = data.submissions.length
+      ? '<div class="row g-4">' + data.submissions.map(galleryCardHtml).join('') + '</div>'
+      : '<p class="text-muted">ยังไม่มีผลงานที่เผยแพร่ในขณะนี้</p>';
+
+    setView(
+      '<div class="hero-band mb-4 text-center">' +
+        '<p class="eyebrow mb-1">Yala Rajabhat University</p>' +
+        '<h1 class="fw-bold">' + esc(data.appName || 'YRU Innovation Portal') + '</h1>' +
+        '<p class="mb-0">คลังผลงานนวัตกรรมและเวทีประกวดผลงานของมหาวิทยาลัยราชภัฏยะลา</p>' +
+      '</div>' +
+      banner + grid
+    );
+  }
+
+  function renderGallery() {
+    if (window.__PUBLIC_DATA__) {
+      renderGalleryList(window.__PUBLIC_DATA__);
+    } else {
+      setLoading();
+    }
+    api('getGallery').then(function (data) {
+      window.__PUBLIC_DATA__ = data;
+      if ((location.hash.replace(/^#\/?/, '').split('/')[0] || 'home') === 'home') {
+        renderGalleryList(data);
+      }
+    }).catch(toastError);
+  }
+
+  function detailBlockHtml(label, value) {
+    if (!value) return '';
+    return '<h6 class="mt-4">' + esc(label) + '</h6><p style="white-space:pre-wrap;">' + esc(value) + '</p>';
+  }
+
+  function renderDetail(id) {
+    setLoading();
+    api('getDetail', id).then(function (item) {
+      var attachment = item.attachmentUrl
+        ? '<a class="btn btn-outline-primary btn-sm mt-3" target="_blank" rel="noopener" href="' + esc(item.attachmentUrl) + '"><i class="bi bi-paperclip"></i> ' + esc(item.attachmentName || 'เอกสารแนบ') + '</a>'
+        : '';
+      setView(
+        '<a href="#/" class="btn btn-link px-0 mb-3"><i class="bi bi-arrow-left"></i> กลับไปคลังผลงาน</a>' +
+        '<div class="card card-item"><div class="card-body p-4">' +
+          (item.awardStatus ? '<span class="badge badge-award mb-3"><i class="bi bi-trophy-fill me-1"></i>' + esc(item.awardStatus) + '</span><br>' : '') +
+          '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' +
+          '<h2 class="fw-bold">' + esc(item.title) + '</h2>' +
+          detailBlockHtml('สภาพปัญหา / ที่มาของแนวคิด', item.problemStatement) +
+          detailBlockHtml('แนวคิด / วิธีการดำเนินการ', item.solutionDescription) +
+          detailBlockHtml('ผลลัพธ์ / ประโยชน์ที่ได้รับ', item.impactBenefit) +
+          attachment +
+        '</div></div>'
+      );
+    }).catch(function (err) {
+      setView('<div class="alert alert-danger">' + esc(err.message || err) + '</div>');
+    });
+  }
+</script>

@@ -1,0 +1,205 @@
+<script>
+  /* ---------- helpers ---------- */
+  function esc(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  function fmtDate(value) {
+    if (!value) return '-';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  var STATUS_LABELS = { draft: 'ฉบับร่าง', submitted: 'ส่งแล้ว รอพิจารณา', published: 'เผยแพร่แล้ว' };
+  var STATUS_BADGE = { draft: 'secondary', submitted: 'info', published: 'success' };
+
+  /* ---------- session store ---------- */
+  var Store = (function () {
+    var KEY = 'yru_innovation_session_v1';
+    return {
+      get: function () {
+        try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; }
+      },
+      set: function (token, user) {
+        localStorage.setItem(KEY, JSON.stringify({ token: token, user: user }));
+      },
+      clear: function () { localStorage.removeItem(KEY); },
+      getToken: function () { var s = this.get(); return s ? s.token : null; },
+      getUser: function () { var s = this.get(); return s ? s.user : null; }
+    };
+  })();
+
+  /* ---------- google.script.run promise wrapper ---------- */
+  function api(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        reject(new Error('เรียกใช้งานได้เฉพาะเมื่อเปิดผ่าน Apps Script Web App เท่านั้น'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) { reject(err); })[name]
+        .apply(null, args);
+    });
+  }
+
+  function authApi(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var token = Store.getToken();
+    return api.apply(null, [name, token].concat(args));
+  }
+
+  /* ---------- toast ---------- */
+  function toast(message, variant) {
+    variant = variant || 'primary';
+    var host = document.getElementById('toastHost');
+    var el = document.createElement('div');
+    el.className = 'toast align-items-center text-bg-' + variant + ' border-0 show';
+    el.innerHTML = '<div class="d-flex"><div class="toast-body">' + esc(message) +
+      '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+    host.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4200);
+  }
+
+  function toastError(err) {
+    var message = (err && err.message) ? err.message : String(err);
+    toast(message, 'danger');
+  }
+
+  /* ---------- view helpers ---------- */
+  function setView(html) {
+    var view = document.getElementById('view');
+    if (view) view.innerHTML = html;
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  }
+
+  function setLoading() {
+    setView('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="text-muted mt-3">กำลังโหลดข้อมูล...</p></div>');
+  }
+
+  /* ---------- router ---------- */
+  var Router = {
+    routes: {},
+    add: function (path, handler) { this.routes[path] = handler; },
+    start: function () {
+      window.addEventListener('hashchange', Router.render);
+      Router.render();
+    },
+    render: function () {
+      var hash = location.hash.replace(/^#\/?/, '') || '';
+      var parts = hash.split('/').filter(Boolean);
+      var key = parts[0] || 'home';
+      var param = parts.slice(1).join('/') || null;
+      var handler = Router.routes[key] || Router.routes['home'];
+      renderShell();
+      handler(param);
+    }
+  };
+
+  function guardRoute(roles, handler) {
+    return function (param) {
+      var user = Store.getUser();
+      if (!user || roles.indexOf(user.role) === -1) {
+        toast('กรุณาเข้าสู่ระบบก่อนใช้งานส่วนนี้', 'warning');
+        location.hash = '#/login';
+        return;
+      }
+      handler(param);
+    };
+  }
+
+  /* ---------- shell (nav) ---------- */
+  function navLinksForUser(user) {
+    if (!user) {
+      return [
+        { href: '#/', label: 'คลังนวัตกรรม' },
+        { href: '#/login', label: 'เข้าสู่ระบบ / ลงทะเบียน' }
+      ];
+    }
+    if (user.role === 'admin') {
+      return [
+        { href: '#/', label: 'คลังนวัตกรรม' },
+        { href: '#/admin', label: 'แดชบอร์ดผู้ดูแล' }
+      ];
+    }
+    if (user.role === 'judge') {
+      return [
+        { href: '#/', label: 'คลังนวัตกรรม' },
+        { href: '#/judge', label: 'ให้คะแนนผลงาน' }
+      ];
+    }
+    return [
+      { href: '#/', label: 'คลังนวัตกรรม' },
+      { href: '#/submit', label: 'ส่งผลงาน' },
+      { href: '#/my', label: 'ผลงานของฉัน' }
+    ];
+  }
+
+  function renderShell() {
+    var user = Store.getUser();
+    var root = document.getElementById('app');
+    var currentHash = location.hash.replace(/^#\/?/, '').split('/')[0] || 'home';
+
+    var links = navLinksForUser(user).map(function (link) {
+      var routeKey = link.href.replace(/^#\/?/, '').split('/')[0] || 'home';
+      var active = routeKey === currentHash ? ' active' : '';
+      return '<a class="nav-link' + active + '" href="' + link.href + '">' + esc(link.label) + '</a>';
+    }).join('');
+
+    var userArea = user
+      ? '<span class="navbar-text text-white me-2 d-none d-md-inline"><i class="bi bi-person-circle me-1"></i>' + esc(user.displayName) + '</span>' +
+        '<button class="btn btn-sm btn-outline-light" id="btnLogout"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</button>'
+      : '';
+
+    root.innerHTML =
+      '<nav class="navbar navbar-expand-lg navbar-yru sticky-top shadow-sm">' +
+        '<div class="container">' +
+          '<a class="navbar-brand fw-semibold" href="#/"><i class="bi bi-lightbulb-fill me-1"></i> YRU Innovation</a>' +
+          '<button class="navbar-toggler bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#navMain"><span class="navbar-toggler-icon"></span></button>' +
+          '<div class="collapse navbar-collapse" id="navMain">' +
+            '<div class="navbar-nav me-auto">' + links + '</div>' +
+            '<div class="d-flex align-items-center gap-2">' + userArea + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</nav>' +
+      '<main class="container py-4" id="view"></main>' +
+      '<footer class="app-footer">สำนักงานประกันคุณภาพ สำนักงานอธิการบดี มหาวิทยาลัยราชภัฏยะลา</footer>';
+
+    var logoutBtn = document.getElementById('btnLogout');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function () {
+        authApi('logout').catch(function () {}).then(function () {
+          Store.clear();
+          toast('ออกจากระบบแล้ว', 'secondary');
+          location.hash = '#/';
+          renderShell();
+        });
+      });
+    }
+  }
+
+  /* ---------- boot ---------- */
+  function boot() {
+    renderShell();
+    var session = Store.get();
+    if (session && session.token) {
+      authApi('resumeSession').then(function (res) {
+        Store.set(session.token, res.user);
+        renderShell();
+        Router.start();
+      }).catch(function () {
+        Store.clear();
+        renderShell();
+        Router.start();
+      });
+    } else {
+      Router.start();
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', boot);
+</script>
