@@ -14,7 +14,7 @@
   }
 
   function galleryCardHtml(item) {
-    var excerptSource = item.problemStatement || '';
+    var excerptSource = item.reasonImportance || '';
     var excerpt = excerptSource.slice(0, 120) + (excerptSource.length > 120 ? '…' : '');
     return '<div class="col-md-6 col-lg-4">' +
       '<a href="#/item/' + encodeURIComponent(item.submissionId) + '" class="text-decoration-none text-reset">' +
@@ -65,6 +65,15 @@
     return '<h6 class="mt-4">' + esc(label) + '</h6><p style="white-space:pre-wrap;">' + esc(value) + '</p>';
   }
 
+  function responsiblePeopleLine(item) {
+    var names = [item.responsiblePerson1, item.responsiblePerson2, item.responsiblePerson3].filter(Boolean);
+    if (!names.length && !item.organization) return '';
+    var parts = [];
+    if (names.length) parts.push('ผู้รับผิดชอบ: ' + names.map(esc).join(', '));
+    if (item.organization) parts.push('หน่วยงาน: ' + esc(item.organization));
+    return '<p class="text-muted small mb-3">' + parts.join(' &middot; ') + '</p>';
+  }
+
   function renderDetail(id) {
     setLoading();
     api('getDetail', id).then(function (item) {
@@ -78,9 +87,15 @@
           (item.awardStatus ? '<span class="badge badge-award mb-3"><i class="bi bi-trophy-fill me-1"></i>' + esc(item.awardStatus) + '</span><br>' : '') +
           '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' +
           '<h2 class="fw-bold">' + esc(item.title) + '</h2>' +
-          detailBlockHtml('สภาพปัญหา / ที่มาของแนวคิด', item.problemStatement) +
-          detailBlockHtml('แนวคิด / วิธีการดำเนินการ', item.solutionDescription) +
-          detailBlockHtml('ผลลัพธ์ / ประโยชน์ที่ได้รับ', item.impactBenefit) +
+          responsiblePeopleLine(item) +
+          detailBlockHtml('1. เหตุผลความจำเป็น/ความสำคัญของปัญหา', item.reasonImportance) +
+          detailBlockHtml('2.1 วัตถุประสงค์และเป้าหมายของการพัฒนานวัตกรรม', item.objectiveGoal) +
+          detailBlockHtml('2.2 การใช้หลักการ แนวคิด ทฤษฎี ในการพัฒนานวัตกรรม', item.principleTheory) +
+          detailBlockHtml('2.3 กระบวนการพัฒนานวัตกรรม', item.developmentProcess) +
+          detailBlockHtml('3. ความสำเร็จของการพัฒนานวัตกรรม', item.successEvidence) +
+          detailBlockHtml('4. แนวทางที่จะพัฒนาต่อไปในอนาคต', item.futureDirection) +
+          detailBlockHtml('5. การเผยแพร่/การได้รับการยอมรับ/รางวัลที่ได้รับ', item.recognitionAward) +
+          detailBlockHtml('6. การจัดเก็บเป็นองค์ความรู้', item.knowledgeCapture) +
         '</div></div>'
       );
     }).catch(function (err) {

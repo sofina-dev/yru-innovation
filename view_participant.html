@@ -10,6 +10,17 @@
     }).join('');
   }
 
+  function textField(name, label, value, required) {
+    return '<div class="mb-3"><label class="form-label">' + esc(label) + '</label>' +
+      '<input class="form-control" name="' + name + '"' + (required ? ' required' : '') + ' value="' + esc(value || '') + '"></div>';
+  }
+
+  function textareaField(name, label, value, hint) {
+    return '<div class="mb-3"><label class="form-label">' + esc(label) + '</label>' +
+      (hint ? '<div class="form-text mt-0 mb-1">' + esc(hint) + '</div>' : '') +
+      '<textarea class="form-control" name="' + name + '" rows="3">' + esc(value || '') + '</textarea></div>';
+  }
+
   function renderSubmitForm(submissionId) {
     setLoading();
     authApi('getMyWorkspace').then(function (data) {
@@ -25,16 +36,31 @@
 
       setView(
         '<div class="row justify-content-center"><div class="col-lg-8">' +
-        '<h3 class="fw-bold mb-3">' + (existing ? 'แก้ไขผลงาน' : 'ส่งผลงานนวัตกรรมใหม่') + '</h3>' +
+        '<h3 class="fw-bold mb-1">' + (existing ? 'แก้ไขผลงาน' : 'ส่งผลงานนวัตกรรมใหม่') + '</h3>' +
+        '<p class="text-muted mb-3">ตามแบบฟอร์มนำเสนอผลงานนวัตกรรม KM YRU Forum</p>' +
         (!data.config.allowSubmission ? '<div class="alert alert-warning">ขณะนี้ปิดรับ/ปิดแก้ไขผลงานแล้ว</div>' : '') +
         '<div class="card card-item"><div class="card-body p-4">' +
         '<form id="submitForm">' +
           '<input type="hidden" name="submissionId" value="' + esc(submissionId || '') + '">' +
-          '<div class="mb-3"><label class="form-label">ชื่อผลงาน</label><input class="form-control" name="title" required value="' + esc(existing ? existing.title : '') + '"></div>' +
-          '<div class="mb-3"><label class="form-label">ประเด็นที่ส่งประกวด</label><select class="form-select" name="category" required>' + categorySelectHtml(data.config.categories, existing ? existing.category : '') + '</select></div>' +
-          '<div class="mb-3"><label class="form-label">สภาพปัญหา / ที่มาของแนวคิด</label><textarea class="form-control" name="problemStatement" rows="3">' + esc(existing ? existing.problemStatement : '') + '</textarea></div>' +
-          '<div class="mb-3"><label class="form-label">แนวคิด / วิธีการดำเนินการ</label><textarea class="form-control" name="solutionDescription" rows="3">' + esc(existing ? existing.solutionDescription : '') + '</textarea></div>' +
-          '<div class="mb-3"><label class="form-label">ผลลัพธ์ / ประโยชน์ที่ได้รับ</label><textarea class="form-control" name="impactBenefit" rows="3">' + esc(existing ? existing.impactBenefit : '') + '</textarea></div>' +
+          textField('title', 'ชื่อผลงาน', existing ? existing.title : '', true) +
+          '<div class="mb-3"><label class="form-label">ประเด็นการจัดการความรู้</label><select class="form-select" name="category" required>' + categorySelectHtml(data.config.categories, existing ? existing.category : '') + '</select></div>' +
+          textField('organization', 'หน่วยงาน', existing ? existing.organization : data.user.organization, false) +
+          '<div class="row">' +
+            '<div class="col-md-4">' + textField('responsiblePerson1', 'ผู้รับผิดชอบ 1', existing ? existing.responsiblePerson1 : data.user.displayName, false) + '</div>' +
+            '<div class="col-md-4">' + textField('responsiblePerson2', 'ผู้รับผิดชอบ 2 (ถ้ามี)', existing ? existing.responsiblePerson2 : '', false) + '</div>' +
+            '<div class="col-md-4">' + textField('responsiblePerson3', 'ผู้รับผิดชอบ 3 (ถ้ามี)', existing ? existing.responsiblePerson3 : '', false) + '</div>' +
+          '</div>' +
+          '<hr class="my-4">' +
+          textareaField('reasonImportance', '1. เหตุผลความจำเป็น/ความสำคัญของปัญหา', existing ? existing.reasonImportance : '', 'หลักการ แนวคิด ทฤษฎี') +
+          '<h6 class="mt-4">2. กระบวนการหรือวิธีการในการพัฒนานวัตกรรม</h6>' +
+          textareaField('objectiveGoal', '2.1 วัตถุประสงค์และเป้าหมายของการพัฒนานวัตกรรม', existing ? existing.objectiveGoal : '') +
+          textareaField('principleTheory', '2.2 การใช้หลักการ แนวคิด ทฤษฎี ในการพัฒนานวัตกรรม', existing ? existing.principleTheory : '') +
+          textareaField('developmentProcess', '2.3 กระบวนการพัฒนานวัตกรรม', existing ? existing.developmentProcess : '') +
+          textareaField('successEvidence', '3. ความสำเร็จของการพัฒนานวัตกรรม', existing ? existing.successEvidence : '', 'ความสำเร็จและหลักฐานที่แสดงถึงผลความสำเร็จ') +
+          textareaField('futureDirection', '4. แนวทางที่จะพัฒนาต่อไปในอนาคต', existing ? existing.futureDirection : '') +
+          textareaField('recognitionAward', '5. การเผยแพร่/การได้รับการยอมรับ/รางวัลที่ได้รับ/ทรัพย์สินทางปัญญา (ถ้ามี)', existing ? existing.recognitionAward : '') +
+          textareaField('knowledgeCapture', '6. การจัดเก็บเป็นองค์ความรู้', existing ? existing.knowledgeCapture : '', 'สังเคราะห์และสกัดผลการพัฒนานวัตกรรมให้เป็นองค์ความรู้') +
+          '<h6 class="mt-4">7. ภาคผนวก (ร่องรอย หลักฐาน ภาพถ่าย ชิ้นงาน ฯลฯ)</h6>' +
           '<div class="mb-3"><label class="form-label">รูปภาพหลักของผลงาน (ไม่บังคับ — ใช้แสดงเป็นภาพปกในหน้าเผยแพร่)</label>' +
             '<input class="form-control" type="file" accept="image/*" id="attachmentInput">' +
             '<img class="attachment-preview" id="attachmentPreview" src="' + esc(existing ? existing.attachmentUrl || '' : '') + '" style="' + (existing && existing.attachmentUrl ? 'display:block' : '') + '">' +

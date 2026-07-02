@@ -16,10 +16,16 @@ const USERS_HEADERS = [
   'created_at', 'updated_at', 'last_login_at'
 ];
 
+// Field structure matches the official YRU "แบบฟอร์มนำเสนอผลงานนวัตกรรม"
+// (KM YRU Forum) sections 1-6; section 7 (ภาคผนวก) maps to the cover
+// image/attachment fields.
 const SUBMISSIONS_HEADERS = [
-  'submission_id', 'user_id', 'title', 'category', 'problem_statement',
-  'solution_description', 'impact_benefit', 'attachment_file_id',
-  'attachment_url', 'attachment_name', 'status', 'award_status',
+  'submission_id', 'user_id', 'title', 'category', 'organization',
+  'responsible_person_1', 'responsible_person_2', 'responsible_person_3',
+  'reason_importance', 'objective_goal', 'principle_theory', 'development_process',
+  'success_evidence', 'future_direction', 'recognition_award', 'knowledge_capture',
+  'attachment_file_id', 'attachment_url', 'attachment_name',
+  'status', 'award_status',
   'created_at', 'updated_at', 'submitted_at', 'published_at'
 ];
 
@@ -42,9 +48,9 @@ const SYSTEM_CONFIG_CACHE_TTL_ = 120;
 
 function defaultSystemConfig_() {
   const categories = [
-    { id: 'cat1', label: 'ประเด็นที่ 1', status: 'active' },
-    { id: 'cat2', label: 'ประเด็นที่ 2', status: 'active' },
-    { id: 'cat3', label: 'ประเด็นที่ 3', status: 'active' }
+    { id: 'cat1', label: 'ประเด็นที่ 1 การผลิตบัณฑิตในศตวรรษที่ 21', status: 'active' },
+    { id: 'cat2', label: 'ประเด็นที่ 2 การบริหารจัดการงานวิจัยเพื่อการพัฒนาท้องถิ่นและการบริการวิชาการ หรือทำนุบำรุงศิลปวัฒนธรรมเพื่อพัฒนาชุมชนท้องถิ่นจังหวัดชายแดนภาคใต้', status: 'active' },
+    { id: 'cat3', label: 'ประเด็นที่ 3 การบริหารจัดการองค์กรสู่ Smart University', status: 'active' }
   ];
 
   const criteriaLabels = [

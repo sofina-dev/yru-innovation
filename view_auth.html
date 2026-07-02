@@ -40,7 +40,9 @@
         '<form id="registerForm">' +
           '<div class="mb-3"><label class="form-label">ชื่อ-นามสกุล</label><input class="form-control" name="displayName" required></div>' +
           '<div class="mb-3"><label class="form-label">หน่วยงาน/สังกัด</label><input class="form-control" name="organization"></div>' +
-          '<div class="mb-3"><label class="form-label">อีเมล</label><input type="email" class="form-control" name="email"></div>' +
+          '<div class="mb-3"><label class="form-label">อีเมล</label>' +
+            '<input type="email" class="form-control" name="email" required placeholder="you@gmail.com หรือ you@yru.ac.th">' +
+            '<div class="form-text">รองรับเฉพาะอีเมล Gmail (@gmail.com) หรืออีเมลองค์กร (@yru.ac.th)</div></div>' +
           '<div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" required minlength="4"></div>' +
           '<div class="mb-3"><label class="form-label">รหัสผ่าน (อย่างน้อย 8 ตัวอักษร)</label><input type="password" class="form-control" name="password" required minlength="8"></div>' +
           '<button class="btn btn-primary w-100" type="submit">ลงทะเบียน</button>' +

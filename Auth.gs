@@ -24,6 +24,15 @@ function hashPassword_(salt, password) {
   }).join('');
 }
 
+const ALLOWED_REGISTER_EMAIL_DOMAINS_ = ['gmail.com', 'yru.ac.th'];
+
+function assertAllowedEmailDomain_(email) {
+  const domain = email.split('@')[1] || '';
+  if (ALLOWED_REGISTER_EMAIL_DOMAINS_.indexOf(domain) === -1) {
+    throw new Error('รองรับเฉพาะอีเมล Gmail (@gmail.com) หรืออีเมลองค์กร (@yru.ac.th) เท่านั้น');
+  }
+}
+
 function register(payload) {
   payload = payload || {};
   const username = normalizeUsername_(payload.username);
@@ -38,11 +47,18 @@ function register(payload) {
   if (!displayName) {
     throw new Error('กรุณากรอกชื่อ-นามสกุลผู้ส่งผลงาน');
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('กรุณากรอกอีเมลให้ถูกต้อง');
+  }
+  assertAllowedEmailDomain_(email);
   if (password.length < 8) {
     throw new Error('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
   }
   if (findRow_(SHEET_NAMES.USERS, 'username', username)) {
     throw new Error('Username นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น');
+  }
+  if (findRow_(SHEET_NAMES.USERS, 'email', email)) {
+    throw new Error('อีเมลนี้ถูกใช้ลงทะเบียนแล้ว กรุณาเข้าสู่ระบบแทน');
   }
 
   const salt = Utilities.getUuid();
