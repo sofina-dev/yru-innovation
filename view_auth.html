@@ -52,13 +52,13 @@
         var form = e.target;
         var btn = form.querySelector('button');
         var payload = Object.fromEntries(new FormData(form).entries());
-        btn.disabled = true;
+        setButtonLoading(btn, true, 'กำลังลงทะเบียน...');
         api('register', payload).then(function (res) {
           Store.set(res.token, res.user);
           toast('ลงทะเบียนสำเร็จ ยินดีต้อนรับ ' + res.user.displayName, 'success');
           renderShell();
           redirectForRole(res.user.role);
-        }).catch(function (err) { toastError(err); btn.disabled = false; });
+        }).catch(function (err) { toastError(err); setButtonLoading(btn, false); });
       });
     } else {
       pane.innerHTML =
@@ -72,13 +72,13 @@
         var form = e.target;
         var btn = form.querySelector('button');
         var payload = Object.fromEntries(new FormData(form).entries());
-        btn.disabled = true;
+        setButtonLoading(btn, true, 'กำลังเข้าสู่ระบบ...');
         api('login', payload).then(function (res) {
           Store.set(res.token, res.user);
           toast('เข้าสู่ระบบสำเร็จ', 'success');
           renderShell();
           redirectForRole(res.user.role);
-        }).catch(function (err) { toastError(err); btn.disabled = false; });
+        }).catch(function (err) { toastError(err); setButtonLoading(btn, false); });
       });
     }
   }

@@ -7,23 +7,22 @@
     return '<span class="badge badge-award position-absolute top-0 end-0 m-2"><i class="bi bi-trophy-fill me-1"></i>' + esc(awardStatus) + '</span>';
   }
 
-  function coverImageHtml(url) {
+  function coverImageHtml(images) {
+    var url = images && images.length ? images[0].url : '';
     return url
       ? '<img src="' + esc(url) + '" alt="">'
       : '<div class="card-img-placeholder"><i class="bi bi-image"></i></div>';
   }
 
   function galleryCardHtml(item) {
-    var excerptSource = item.reasonImportance || '';
-    var excerpt = excerptSource.slice(0, 120) + (excerptSource.length > 120 ? '…' : '');
     return '<div class="col-md-6 col-lg-4">' +
       '<a href="#/item/' + encodeURIComponent(item.submissionId) + '" class="text-decoration-none text-reset">' +
       '<div class="card card-item position-relative">' +
-        '<div class="card-img-wrap">' + coverImageHtml(item.attachmentUrl) + awardBadge(item.awardStatus) + '</div>' +
+        '<div class="card-img-wrap">' + coverImageHtml(item.images) + awardBadge(item.awardStatus) + '</div>' +
         '<div class="card-body">' +
           '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' +
           '<h5 class="card-title">' + esc(item.title) + '</h5>' +
-          '<p class="card-text text-muted small">' + esc(excerpt) + '</p>' +
+          '<p class="card-text text-muted small">' + esc(excerpt(item.reasonImportance, 120)) + '</p>' +
         '</div>' +
       '</div></a></div>';
   }
@@ -61,12 +60,13 @@
   }
 
   function detailBlockHtml(label, value) {
-    if (!value) return '';
-    return '<h6 class="mt-4">' + esc(label) + '</h6><p style="white-space:pre-wrap;">' + esc(value) + '</p>';
+    var content = richText(value);
+    if (!content) return '';
+    return '<h6 class="mt-4">' + esc(label) + '</h6>' + content;
   }
 
   function responsiblePeopleLine(item) {
-    var names = [item.responsiblePerson1, item.responsiblePerson2, item.responsiblePerson3].filter(Boolean);
+    var names = (item.responsiblePeople || []).filter(Boolean);
     if (!names.length && !item.organization) return '';
     var parts = [];
     if (names.length) parts.push('ผู้รับผิดชอบ: ' + names.map(esc).join(', '));
@@ -74,11 +74,25 @@
     return '<p class="text-muted small mb-3">' + parts.join(' &middot; ') + '</p>';
   }
 
+  function referenceLinkHtml(link) {
+    if (!link) return '';
+    var safeHref = /^https?:\/\//i.test(link) ? link : ('https://' + link);
+    return '<p class="mt-3"><a class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener noreferrer" href="' + esc(safeHref) + '">' +
+      '<i class="bi bi-link-45deg"></i> ลิงก์อ้างอิงเพิ่มเติม</a></p>';
+  }
+
+  function galleryImagesHtml(images) {
+    if (!images || images.length < 2) return '';
+    return '<div class="row g-2 mb-3">' + images.slice(1).map(function (img) {
+      return '<div class="col-4 col-md-3"><div class="card-img-wrap" style="aspect-ratio:1/1"><img src="' + esc(img.url) + '" alt=""></div></div>';
+    }).join('') + '</div>';
+  }
+
   function renderDetail(id) {
     setLoading();
     api('getDetail', id).then(function (item) {
-      var cover = item.attachmentUrl
-        ? '<img class="detail-cover" src="' + esc(item.attachmentUrl) + '" alt="">'
+      var cover = item.images && item.images.length
+        ? '<img class="detail-cover" src="' + esc(item.images[0].url) + '" alt="">'
         : '';
       setView(
         '<a href="#/" class="btn btn-link px-0 mb-3"><i class="bi bi-arrow-left"></i> กลับไปคลังผลงาน</a>' +
@@ -96,6 +110,8 @@
           detailBlockHtml('4. แนวทางที่จะพัฒนาต่อไปในอนาคต', item.futureDirection) +
           detailBlockHtml('5. การเผยแพร่/การได้รับการยอมรับ/รางวัลที่ได้รับ', item.recognitionAward) +
           detailBlockHtml('6. การจัดเก็บเป็นองค์ความรู้', item.knowledgeCapture) +
+          galleryImagesHtml(item.images) +
+          referenceLinkHtml(item.referenceLink) +
         '</div></div>'
       );
     }).catch(function (err) {

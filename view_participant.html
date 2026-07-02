@@ -2,7 +2,19 @@
   Router.add('submit', guardRoute(['participant', 'admin'], renderSubmitForm));
   Router.add('my', guardRoute(['participant', 'admin'], renderMySubmissions));
 
-  var _pendingAttachment = null;
+  var _pendingImages = [];
+  var _quillEditors = {};
+
+  var RICH_FIELDS = [
+    { key: 'reasonImportance', label: '1. เหตุผลความจำเป็น/ความสำคัญของปัญหา', hint: 'หลักการ แนวคิด ทฤษฎี' },
+    { key: 'objectiveGoal', label: '2.1 วัตถุประสงค์และเป้าหมายของการพัฒนานวัตกรรม' },
+    { key: 'principleTheory', label: '2.2 การใช้หลักการ แนวคิด ทฤษฎี ในการพัฒนานวัตกรรม' },
+    { key: 'developmentProcess', label: '2.3 กระบวนการพัฒนานวัตกรรม' },
+    { key: 'successEvidence', label: '3. ความสำเร็จของการพัฒนานวัตกรรม', hint: 'ความสำเร็จและหลักฐานที่แสดงถึงผลความสำเร็จ' },
+    { key: 'futureDirection', label: '4. แนวทางที่จะพัฒนาต่อไปในอนาคต' },
+    { key: 'recognitionAward', label: '5. การเผยแพร่/การได้รับการยอมรับ/รางวัลที่ได้รับ/ทรัพย์สินทางปัญญา (ถ้ามี)' },
+    { key: 'knowledgeCapture', label: '6. การจัดเก็บเป็นองค์ความรู้', hint: 'สังเคราะห์และสกัดผลการพัฒนานวัตกรรมให้เป็นองค์ความรู้' }
+  ];
 
   function categorySelectHtml(categories, selected) {
     return '<option value="">-- เลือกประเด็น --</option>' + categories.map(function (c) {
@@ -10,29 +22,114 @@
     }).join('');
   }
 
-  function textField(name, label, value, required) {
+  function textField(id, label, value) {
     return '<div class="mb-3"><label class="form-label">' + esc(label) + '</label>' +
-      '<input class="form-control" name="' + name + '"' + (required ? ' required' : '') + ' value="' + esc(value || '') + '"></div>';
+      '<input class="form-control" id="' + id + '" value="' + esc(value || '') + '"></div>';
   }
 
-  function textareaField(name, label, value, hint) {
-    return '<div class="mb-3"><label class="form-label">' + esc(label) + '</label>' +
-      (hint ? '<div class="form-text mt-0 mb-1">' + esc(hint) + '</div>' : '') +
-      '<textarea class="form-control" name="' + name + '" rows="3">' + esc(value || '') + '</textarea></div>';
+  function richFieldHtml(field) {
+    return '<div class="mb-4">' +
+      '<label class="form-label">' + esc(field.label) + '</label>' +
+      (field.hint ? '<div class="form-text mt-0 mb-1">' + esc(field.hint) + '</div>' : '') +
+      '<div class="rich-editor-wrap"><div id="quill_' + field.key + '"></div></div>' +
+    '</div>';
+  }
+
+  /* ---------- responsible people (dynamic add/remove) ---------- */
+  function personRowHtml(name) {
+    return '<div class="input-group mb-2 person-row">' +
+      '<input class="form-control" placeholder="ชื่อ-นามสกุลผู้รับผิดชอบ" value="' + esc(name || '') + '">' +
+      '<button class="btn btn-outline-danger" type="button" data-remove-person><i class="bi bi-x-lg"></i></button>' +
+    '</div>';
+  }
+
+  function renderResponsiblePeople(names) {
+    var list = names && names.length ? names : [''];
+    document.getElementById('responsibleList').innerHTML = list.map(personRowHtml).join('');
+    bindPersonRowRemovers();
+  }
+
+  function bindPersonRowRemovers() {
+    document.querySelectorAll('[data-remove-person]').forEach(function (btn) {
+      btn.onclick = function () {
+        var rows = document.querySelectorAll('.person-row');
+        if (rows.length <= 1) { btn.closest('.person-row').querySelector('input').value = ''; return; }
+        btn.closest('.person-row').remove();
+      };
+    });
+  }
+
+  /* ---------- images (multi-upload + cover picker) ---------- */
+  function renderImageChips() {
+    var host = document.getElementById('imageChips');
+    if (!host) return;
+    host.innerHTML = _pendingImages.map(function (img, index) {
+      return '<div class="image-chip' + (index === 0 ? ' is-cover' : '') + '">' +
+        (index === 0 ? '<span class="cover-badge">ปก</span>' : '') +
+        '<img src="' + esc(img.url) + '" alt="">' +
+        '<div class="chip-actions">' +
+          (index !== 0 ? '<button type="button" data-set-cover="' + index + '">ตั้งเป็นปก</button>' : '<span></span>') +
+          '<button type="button" data-remove-image="' + index + '"><i class="bi bi-trash"></i></button>' +
+        '</div>' +
+      '</div>';
+    }).join('') + '<div id="imageUploadStatus" class="text-muted small w-100 mt-1"></div>';
+
+    host.querySelectorAll('[data-set-cover]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var i = Number(btn.getAttribute('data-set-cover'));
+        var picked = _pendingImages.splice(i, 1)[0];
+        _pendingImages.unshift(picked);
+        renderImageChips();
+      });
+    });
+    host.querySelectorAll('[data-remove-image]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        _pendingImages.splice(Number(btn.getAttribute('data-remove-image')), 1);
+        renderImageChips();
+      });
+    });
+  }
+
+  function handleImageFiles(fileList) {
+    var files = Array.prototype.filter.call(fileList, function (f) { return f.type.startsWith('image/'); });
+    if (!files.length) { toast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'danger'); return; }
+    var statusEl = document.getElementById('imageUploadStatus');
+    var remaining = files.length;
+    files.forEach(function (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast('ไฟล์ ' + file.name + ' มีขนาดเกิน 10MB ข้ามไฟล์นี้', 'danger');
+        remaining--;
+        return;
+      }
+      if (statusEl) statusEl.textContent = 'กำลังอัปโหลด ' + file.name + ' ...';
+      var reader = new FileReader();
+      reader.onload = function () {
+        var base64 = reader.result.split(',')[1];
+        authApi('uploadAttachment', base64, file.name, file.type).then(function (res) {
+          _pendingImages.push(res);
+          renderImageChips();
+        }).catch(function (err) {
+          toastError(err);
+        }).finally(function () {
+          remaining--;
+          if (remaining === 0 && statusEl) statusEl.textContent = '';
+        });
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function renderSubmitForm(submissionId) {
     setLoading();
     authApi('getMyWorkspace').then(function (data) {
-      _pendingAttachment = null;
+      _pendingImages = [];
+      _quillEditors = {};
       var existing = submissionId ? data.submissions.find(function (s) { return s.submissionId === submissionId; }) : null;
       if (submissionId && !existing) {
         setView('<div class="alert alert-warning">ไม่พบผลงานนี้ หรือไม่ใช่ผลงานของคุณ</div>');
         return;
       }
-      if (existing && existing.status !== 'draft' && data.user.role !== 'admin') {
-        toast('ผลงานนี้ถูกส่งแล้ว ไม่สามารถแก้ไขได้', 'warning');
-      }
+      _pendingImages = existing && existing.images ? existing.images.slice() : [];
 
       setView(
         '<div class="row justify-content-center"><div class="col-lg-8">' +
@@ -41,89 +138,97 @@
         (!data.config.allowSubmission ? '<div class="alert alert-warning">ขณะนี้ปิดรับ/ปิดแก้ไขผลงานแล้ว</div>' : '') +
         '<div class="card card-item"><div class="card-body p-4">' +
         '<form id="submitForm">' +
-          '<input type="hidden" name="submissionId" value="' + esc(submissionId || '') + '">' +
-          textField('title', 'ชื่อผลงาน', existing ? existing.title : '', true) +
-          '<div class="mb-3"><label class="form-label">ประเด็นการจัดการความรู้</label><select class="form-select" name="category" required>' + categorySelectHtml(data.config.categories, existing ? existing.category : '') + '</select></div>' +
-          textField('organization', 'หน่วยงาน', existing ? existing.organization : data.user.organization, false) +
-          '<div class="row">' +
-            '<div class="col-md-4">' + textField('responsiblePerson1', 'ผู้รับผิดชอบ 1', existing ? existing.responsiblePerson1 : data.user.displayName, false) + '</div>' +
-            '<div class="col-md-4">' + textField('responsiblePerson2', 'ผู้รับผิดชอบ 2 (ถ้ามี)', existing ? existing.responsiblePerson2 : '', false) + '</div>' +
-            '<div class="col-md-4">' + textField('responsiblePerson3', 'ผู้รับผิดชอบ 3 (ถ้ามี)', existing ? existing.responsiblePerson3 : '', false) + '</div>' +
-          '</div>' +
+          textField('f_title', 'ชื่อผลงาน', existing ? existing.title : '') +
+          '<div class="mb-3"><label class="form-label">ประเด็นการจัดการความรู้</label><select class="form-select" id="f_category">' + categorySelectHtml(data.config.categories, existing ? existing.category : '') + '</select></div>' +
+          textField('f_organization', 'หน่วยงาน', existing ? existing.organization : data.user.organization) +
+          '<label class="form-label">ผู้รับผิดชอบ</label>' +
+          '<div id="responsibleList"></div>' +
+          '<button type="button" class="btn btn-sm btn-outline-primary mb-3" id="btnAddPerson"><i class="bi bi-plus-lg"></i> เพิ่มผู้รับผิดชอบ</button>' +
           '<hr class="my-4">' +
-          textareaField('reasonImportance', '1. เหตุผลความจำเป็น/ความสำคัญของปัญหา', existing ? existing.reasonImportance : '', 'หลักการ แนวคิด ทฤษฎี') +
-          '<h6 class="mt-4">2. กระบวนการหรือวิธีการในการพัฒนานวัตกรรม</h6>' +
-          textareaField('objectiveGoal', '2.1 วัตถุประสงค์และเป้าหมายของการพัฒนานวัตกรรม', existing ? existing.objectiveGoal : '') +
-          textareaField('principleTheory', '2.2 การใช้หลักการ แนวคิด ทฤษฎี ในการพัฒนานวัตกรรม', existing ? existing.principleTheory : '') +
-          textareaField('developmentProcess', '2.3 กระบวนการพัฒนานวัตกรรม', existing ? existing.developmentProcess : '') +
-          textareaField('successEvidence', '3. ความสำเร็จของการพัฒนานวัตกรรม', existing ? existing.successEvidence : '', 'ความสำเร็จและหลักฐานที่แสดงถึงผลความสำเร็จ') +
-          textareaField('futureDirection', '4. แนวทางที่จะพัฒนาต่อไปในอนาคต', existing ? existing.futureDirection : '') +
-          textareaField('recognitionAward', '5. การเผยแพร่/การได้รับการยอมรับ/รางวัลที่ได้รับ/ทรัพย์สินทางปัญญา (ถ้ามี)', existing ? existing.recognitionAward : '') +
-          textareaField('knowledgeCapture', '6. การจัดเก็บเป็นองค์ความรู้', existing ? existing.knowledgeCapture : '', 'สังเคราะห์และสกัดผลการพัฒนานวัตกรรมให้เป็นองค์ความรู้') +
-          '<h6 class="mt-4">7. ภาคผนวก (ร่องรอย หลักฐาน ภาพถ่าย ชิ้นงาน ฯลฯ)</h6>' +
-          '<div class="mb-3"><label class="form-label">รูปภาพหลักของผลงาน (ไม่บังคับ — ใช้แสดงเป็นภาพปกในหน้าเผยแพร่)</label>' +
-            '<input class="form-control" type="file" accept="image/*" id="attachmentInput">' +
-            '<img class="attachment-preview" id="attachmentPreview" src="' + esc(existing ? existing.attachmentUrl || '' : '') + '" style="' + (existing && existing.attachmentUrl ? 'display:block' : '') + '">' +
-            '<div class="form-text" id="attachmentStatus">' + (existing && existing.attachmentName ? 'รูปปัจจุบัน: ' + esc(existing.attachmentName) : 'ยังไม่มีรูปภาพ') + '</div></div>' +
+          RICH_FIELDS.map(richFieldHtml).join('') +
+          '<div class="mb-3"><label class="form-label">7. ภาคผนวก — รูปภาพประกอบผลงาน (เลือกได้หลายรูป ไม่บังคับ)</label>' +
+            '<div class="form-text mt-0 mb-2">รูปแรกจะถูกใช้เป็นภาพปกในหน้าเผยแพร่ — คลิก &quot;ตั้งเป็นปก&quot; ที่รูปอื่นเพื่อเปลี่ยน</div>' +
+            '<input class="form-control" type="file" accept="image/*" multiple id="imageInput">' +
+            '<div class="d-flex flex-wrap gap-2 mt-2" id="imageChips"></div>' +
+          '</div>' +
+          '<div class="mb-3"><label class="form-label">8. ลิงก์อ้างอิงเพิ่มเติม (ไม่บังคับ)</label>' +
+            '<input class="form-control" id="f_referenceLink" placeholder="เช่น ลิงก์ Google Drive หรือเว็บไซต์ผลงาน" value="' + esc(existing ? existing.referenceLink : '') + '"></div>' +
           '<div class="d-flex gap-2 mt-4">' +
-            '<button class="btn btn-outline-secondary" type="submit" name="mode" value="draft">บันทึกร่าง</button>' +
-            '<button class="btn btn-primary" type="submit" name="mode" value="submit">ส่งผลงาน</button>' +
+            '<button class="btn btn-outline-secondary" type="button" id="btnSaveDraft">บันทึกร่าง</button>' +
+            '<button class="btn btn-primary" type="button" id="btnSubmitWork">ส่งผลงาน</button>' +
           '</div>' +
         '</form>' +
         '</div></div></div></div>'
       );
 
-      document.getElementById('attachmentInput').addEventListener('change', function (e) {
-        var file = e.target.files[0];
-        if (!file) return;
-        if (!file.type.startsWith('image/')) { toast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'danger'); e.target.value = ''; return; }
-        if (file.size > 10 * 1024 * 1024) { toast('ไฟล์ต้องมีขนาดไม่เกิน 10MB', 'danger'); e.target.value = ''; return; }
-        var statusEl = document.getElementById('attachmentStatus');
-        var previewEl = document.getElementById('attachmentPreview');
-        previewEl.src = URL.createObjectURL(file);
-        previewEl.style.display = 'block';
-        statusEl.textContent = 'กำลังอัปโหลด ' + file.name + ' ...';
-        var reader = new FileReader();
-        reader.onload = function () {
-          var base64 = reader.result.split(',')[1];
-          authApi('uploadAttachment', base64, file.name, file.type).then(function (res) {
-            _pendingAttachment = res;
-            statusEl.textContent = 'อัปโหลดสำเร็จ: ' + res.name;
-          }).catch(function (err) { toastError(err); statusEl.textContent = 'อัปโหลดไม่สำเร็จ'; });
-        };
-        reader.readAsDataURL(file);
+      renderResponsiblePeople(existing && existing.responsiblePeople && existing.responsiblePeople.length ? existing.responsiblePeople : [data.user.displayName]);
+      renderImageChips();
+
+      RICH_FIELDS.forEach(function (field) {
+        _quillEditors[field.key] = createQuillEditor('quill_' + field.key, existing ? existing[field.key] : '');
       });
 
-      document.getElementById('submitForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        var submitter = e.submitter;
-        var mode = submitter ? submitter.value : 'draft';
-        var payload = Object.fromEntries(new FormData(e.target).entries());
-        payload.isDraft = mode === 'draft';
-        if (_pendingAttachment) {
-          payload.attachmentFileId = _pendingAttachment.fileId;
-          payload.attachmentUrl = _pendingAttachment.url;
-          payload.attachmentName = _pendingAttachment.name;
+      document.getElementById('btnAddPerson').addEventListener('click', function () {
+        document.getElementById('responsibleList').insertAdjacentHTML('beforeend', personRowHtml(''));
+        bindPersonRowRemovers();
+      });
+
+      document.getElementById('imageInput').addEventListener('change', function (e) {
+        if (e.target.files.length) handleImageFiles(e.target.files);
+        e.target.value = '';
+      });
+
+      function collectPayload(mode) {
+        var responsiblePeople = Array.prototype.map.call(
+          document.querySelectorAll('.person-row input'),
+          function (input) { return input.value.trim(); }
+        ).filter(Boolean);
+
+        var payload = {
+          submissionId: submissionId || '',
+          title: document.getElementById('f_title').value.trim(),
+          category: document.getElementById('f_category').value,
+          organization: document.getElementById('f_organization').value.trim(),
+          responsiblePeople: responsiblePeople,
+          referenceLink: document.getElementById('f_referenceLink').value.trim(),
+          images: _pendingImages,
+          isDraft: mode === 'draft'
+        };
+        RICH_FIELDS.forEach(function (field) {
+          payload[field.key] = sanitizeRichHtml(_quillEditors[field.key].root.innerHTML);
+        });
+        return payload;
+      }
+
+      function submitForm(mode, btn) {
+        var payload = collectPayload(mode);
+        if (!payload.title || !payload.category) {
+          toast('กรุณากรอกชื่อผลงานและเลือกประเด็นการประกวด', 'danger');
+          return;
         }
-        submitter.disabled = true;
+        setButtonLoading(btn, true, mode === 'draft' ? 'กำลังบันทึกร่าง...' : 'กำลังส่งผลงาน...');
         authApi('saveSubmission', payload).then(function () {
           toast(mode === 'draft' ? 'บันทึกร่างแล้ว' : 'ส่งผลงานเรียบร้อยแล้ว', 'success');
           location.hash = '#/my';
-        }).catch(function (err) { toastError(err); submitter.disabled = false; });
-      });
+        }).catch(function (err) { toastError(err); setButtonLoading(btn, false); });
+      }
+
+      document.getElementById('btnSaveDraft').addEventListener('click', function () { submitForm('draft', this); });
+      document.getElementById('btnSubmitWork').addEventListener('click', function () { submitForm('submit', this); });
     }).catch(toastError);
   }
 
-  function mySubmissionCard(item) {
+  function mySubmissionCard(item, allowSubmission) {
     var badge = STATUS_BADGE[item.status] || 'secondary';
     var award = item.awardStatus ? '<span class="badge badge-award ms-2"><i class="bi bi-trophy-fill me-1"></i>' + esc(item.awardStatus) + '</span>' : '';
-    var actions = item.status === 'draft'
+    var canEdit = item.status === 'draft' || allowSubmission;
+    var actions = canEdit
       ? '<a class="btn btn-sm btn-outline-primary" href="#/submit/' + encodeURIComponent(item.submissionId) + '">แก้ไข</a> ' +
         '<button class="btn btn-sm btn-outline-danger" data-delete="' + esc(item.submissionId) + '">ลบ</button>'
-      : '<span class="text-muted small">ไม่สามารถแก้ไขได้หลังส่งผลงานแล้ว</span>';
+      : '<span class="text-muted small">ปิดรับ/ปิดแก้ไขผลงานแล้ว</span>';
 
-    var cover = item.attachmentUrl
-      ? '<div class="card-img-wrap"><img src="' + esc(item.attachmentUrl) + '" alt=""></div>'
+    var cover = item.images && item.images.length
+      ? '<div class="card-img-wrap"><img src="' + esc(item.images[0].url) + '" alt=""></div>'
       : '';
 
     return '<div class="col-md-6"><div class="card card-item">' + cover + '<div class="card-body">' +
@@ -138,7 +243,7 @@
     setLoading();
     authApi('getMyWorkspace').then(function (data) {
       var list = data.submissions.length
-        ? '<div class="row g-3">' + data.submissions.map(mySubmissionCard).join('') + '</div>'
+        ? '<div class="row g-3">' + data.submissions.map(function (item) { return mySubmissionCard(item, data.config.allowSubmission); }).join('') + '</div>'
         : '<p class="text-muted">คุณยังไม่มีผลงานที่ส่ง <a href="#/submit">ส่งผลงานแรกของคุณ</a></p>';
       setView(
         '<div class="d-flex justify-content-between align-items-center mb-3">' +
@@ -148,7 +253,7 @@
       );
       document.querySelectorAll('[data-delete]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          if (!confirm('ยืนยันการลบผลงานฉบับร่างนี้?')) return;
+          if (!confirm('ยืนยันการลบผลงานนี้?')) return;
           authApi('deleteSubmission', btn.getAttribute('data-delete')).then(function () {
             toast('ลบแล้ว', 'secondary');
             renderMySubmissions();

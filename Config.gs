@@ -17,17 +17,35 @@ const USERS_HEADERS = [
 ];
 
 // Field structure matches the official YRU "แบบฟอร์มนำเสนอผลงานนวัตกรรม"
-// (KM YRU Forum) sections 1-6; section 7 (ภาคผนวก) maps to the cover
-// image/attachment fields.
+// (KM YRU Forum) sections 1-6; section 7 (ภาคผนวก) maps to `images` (JSON
+// array of {fileId,url,name}, first item is the cover) plus `reference_link`
+// (section 8, added at the user's request for a Drive/website link).
+// `responsible_people` is a JSON array of names (flexible add/remove list).
+// The 6 narrative sections store sanitized rich-text HTML, not plain text.
 const SUBMISSIONS_HEADERS = [
   'submission_id', 'user_id', 'title', 'category', 'organization',
-  'responsible_person_1', 'responsible_person_2', 'responsible_person_3',
+  'responsible_people',
   'reason_importance', 'objective_goal', 'principle_theory', 'development_process',
   'success_evidence', 'future_direction', 'recognition_award', 'knowledge_capture',
-  'attachment_file_id', 'attachment_url', 'attachment_name',
+  'reference_link', 'images',
   'status', 'award_status',
   'created_at', 'updated_at', 'submitted_at', 'published_at'
 ];
+
+function parseJsonArray_(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (!value) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
 
 const CRITERIA_COUNT = 12;
 const CRITERIA_IDS = (function () {
@@ -112,6 +130,24 @@ function saveSystemConfig(config) {
   PropertiesService.getScriptProperties().setProperty(SYSTEM_CONFIG_PROPERTY_, JSON.stringify(config));
   CacheService.getScriptCache().remove(SYSTEM_CONFIG_CACHE_KEY_);
   return config;
+}
+
+/**
+ * Server-side backstop for rich-text HTML fields. The client already runs
+ * DOMPurify with a strict allowlist before submitting (the real DOM-based
+ * sanitization), but the server never trusts client-side sanitization
+ * alone — this strips the highest-risk constructs (script/style/iframe
+ * tags, event handler attributes, javascript:/data: URLs) with regexes as
+ * a second layer, in case a request bypasses the browser UI entirely.
+ */
+function sanitizeRichTextBackstop_(html) {
+  if (!html) {
+    return '';
+  }
+  return String(html)
+    .replace(/<\/?(script|style|iframe|object|embed|form|link|meta)[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*(["'])\s*(javascript|data):[^"']*\2/gi, '$1=$2#$2');
 }
 
 function normalizeForJson_(value) {

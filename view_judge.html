@@ -10,8 +10,7 @@
     return '<div class="col-md-6"><div class="card card-item"><div class="card-body">' +
       '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' + scoredBadge +
       '<h5>' + esc(item.title) + '</h5>' +
-      '<p class="text-muted small">' + esc((item.reasonImportance || '').slice(0, 140)) + '</p>' +
-      (item.attachmentUrl ? '<a class="d-block small mb-2" target="_blank" rel="noopener" href="' + esc(item.attachmentUrl) + '"><i class="bi bi-paperclip"></i> ' + esc(item.attachmentName || 'เอกสารแนบ') + '</a>' : '') +
+      '<p class="text-muted small">' + esc(excerpt(item.reasonImportance, 140)) + '</p>' +
       '<button class="btn btn-primary btn-sm" data-score="' + esc(item.submissionId) + '">' + (item.isScored ? 'แก้ไขคะแนน' : 'ให้คะแนน') + '</button>' +
     '</div></div></div>';
   }
@@ -52,7 +51,8 @@
     var comment = item.myScore ? item.myScore.comment : '';
 
     var fullDetail =
-      (item.attachmentUrl ? '<img class="detail-cover" style="max-height:220px" src="' + esc(item.attachmentUrl) + '" alt="">' : '') +
+      (item.images && item.images.length ? '<img class="detail-cover" style="max-height:220px" src="' + esc(item.images[0].url) + '" alt="">' : '') +
+      (item.organization || (item.responsiblePeople && item.responsiblePeople.length) ? responsiblePeopleLine(item) : '') +
       detailBlockHtml('1. เหตุผลความจำเป็น/ความสำคัญของปัญหา', item.reasonImportance) +
       detailBlockHtml('2.1 วัตถุประสงค์และเป้าหมายของการพัฒนานวัตกรรม', item.objectiveGoal) +
       detailBlockHtml('2.2 การใช้หลักการ แนวคิด ทฤษฎี ในการพัฒนานวัตกรรม', item.principleTheory) +
@@ -60,7 +60,8 @@
       detailBlockHtml('3. ความสำเร็จของการพัฒนานวัตกรรม', item.successEvidence) +
       detailBlockHtml('4. แนวทางที่จะพัฒนาต่อไปในอนาคต', item.futureDirection) +
       detailBlockHtml('5. การเผยแพร่/การได้รับการยอมรับ/รางวัลที่ได้รับ', item.recognitionAward) +
-      detailBlockHtml('6. การจัดเก็บเป็นองค์ความรู้', item.knowledgeCapture);
+      detailBlockHtml('6. การจัดเก็บเป็นองค์ความรู้', item.knowledgeCapture) +
+      referenceLinkHtml(item.referenceLink);
 
     document.getElementById('scoreModalContent').innerHTML =
       '<div class="modal-header"><h5 class="modal-title">ให้คะแนน: ' + esc(item.title) + '</h5>' +
@@ -87,14 +88,14 @@
       var scoreValues = {};
       _judgeCriteria.forEach(function (c) { scoreValues[c.id] = Number(fd.get('c_' + c.id)); });
       var btn = this;
-      btn.disabled = true;
+      setButtonLoading(btn, true, 'กำลังบันทึก...');
       authApi('saveScores', { submissionId: submissionId, scores: scoreValues, comment: fd.get('comment') }).then(function (data) {
         _judgeCriteria = data.criteria;
         window._judgeSubmissions = data.submissions;
         toast('บันทึกคะแนนเรียบร้อยแล้ว', 'success');
         modal.hide();
         renderJudgeList();
-      }).catch(function (err) { toastError(err); btn.disabled = false; });
+      }).catch(function (err) { toastError(err); setButtonLoading(btn, false); });
     });
   }
 </script>

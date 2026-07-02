@@ -63,9 +63,7 @@ function buildPublicData_() {
           category: row.category,
           categoryLabel: categoryLabels[row.category] || row.category,
           organization: row.organization,
-          responsiblePerson1: row.responsible_person_1,
-          responsiblePerson2: row.responsible_person_2,
-          responsiblePerson3: row.responsible_person_3,
+          responsiblePeople: parseJsonArray_(row.responsible_people),
           reasonImportance: row.reason_importance,
           objectiveGoal: row.objective_goal,
           principleTheory: row.principle_theory,
@@ -74,8 +72,8 @@ function buildPublicData_() {
           futureDirection: row.future_direction,
           recognitionAward: row.recognition_award,
           knowledgeCapture: row.knowledge_capture,
-          attachmentUrl: row.attachment_url,
-          attachmentName: row.attachment_name,
+          referenceLink: row.reference_link,
+          images: parseJsonArray_(row.images),
           awardStatus: row.award_status || '',
           publishedAt: row.published_at
         };

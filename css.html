@@ -135,4 +135,64 @@
     padding: 2rem 1rem;
     font-size: .9rem;
   }
+
+  /* ---------- rich text (Quill editor + read-only render) ---------- */
+  .rich-content, .ql-editor { line-height: 1.7; }
+  .rich-content p, .ql-editor p { margin-bottom: .5rem; }
+  .rich-content .ql-align-center, .ql-editor .ql-align-center { text-align: center; }
+  .rich-content .ql-align-right, .ql-editor .ql-align-right { text-align: right; }
+  .rich-content .ql-align-justify, .ql-editor .ql-align-justify { text-align: justify; }
+  .rich-content .ql-font-sans, .ql-editor .ql-font-sans { font-family: 'Noto Sans Thai', sans-serif; }
+  .rich-content .ql-font-serif, .ql-editor .ql-font-serif { font-family: 'Sarabun', serif; }
+  .rich-content .ql-font-thai, .ql-editor .ql-font-thai { font-family: 'Noto Sans Thai', sans-serif; }
+  .rich-content .ql-font-kanit, .ql-editor .ql-font-kanit { font-family: 'Kanit', sans-serif; }
+  .rich-content .ql-font-prompt, .ql-editor .ql-font-prompt { font-family: 'Prompt', sans-serif; }
+  .rich-content .ql-size-small, .ql-editor .ql-size-small { font-size: .82em; }
+  .rich-content .ql-size-large, .ql-editor .ql-size-large { font-size: 1.35em; }
+  .rich-content .ql-size-huge, .ql-editor .ql-size-huge { font-size: 1.8em; }
+  .rich-content a { color: var(--yru-primary); }
+
+  .ql-picker.ql-font .ql-picker-label[data-value="sans"]::before,
+  .ql-picker.ql-font .ql-picker-item[data-value="sans"]::before { content: 'Noto Sans Thai'; font-family: 'Noto Sans Thai', sans-serif; }
+  .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+  .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before { content: 'Sarabun'; font-family: 'Sarabun', serif; }
+  .ql-picker.ql-font .ql-picker-label[data-value="thai"]::before,
+  .ql-picker.ql-font .ql-picker-item[data-value="thai"]::before { content: 'Thai Sans'; font-family: 'Noto Sans Thai', sans-serif; }
+  .ql-picker.ql-font .ql-picker-label[data-value="kanit"]::before,
+  .ql-picker.ql-font .ql-picker-item[data-value="kanit"]::before { content: 'Kanit'; font-family: 'Kanit', sans-serif; }
+  .ql-picker.ql-font .ql-picker-label[data-value="prompt"]::before,
+  .ql-picker.ql-font .ql-picker-item[data-value="prompt"]::before { content: 'Prompt'; font-family: 'Prompt', sans-serif; }
+  .ql-picker.ql-size .ql-picker-label[data-value="small"]::before,
+  .ql-picker.ql-size .ql-picker-item[data-value="small"]::before { content: 'เล็ก'; }
+  .ql-picker.ql-size .ql-picker-label:not([data-value])::before,
+  .ql-picker.ql-size .ql-picker-item:not([data-value])::before { content: 'ปกติ'; }
+  .ql-picker.ql-size .ql-picker-label[data-value="large"]::before,
+  .ql-picker.ql-size .ql-picker-item[data-value="large"]::before { content: 'ใหญ่'; }
+  .ql-picker.ql-size .ql-picker-label[data-value="huge"]::before,
+  .ql-picker.ql-size .ql-picker-item[data-value="huge"]::before { content: 'ใหญ่มาก'; }
+
+  .rich-editor-wrap .ql-container { min-height: 120px; border-radius: 0 0 10px 10px; font-family: 'Noto Sans Thai', sans-serif; }
+  .rich-editor-wrap .ql-toolbar { border-radius: 10px 10px 0 0; background: #fafafa; }
+
+  .image-chip {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid transparent;
+  }
+  .image-chip.is-cover { border-color: var(--yru-primary); }
+  .image-chip img { width: 100%; height: 100%; object-fit: cover; }
+  .image-chip .chip-actions {
+    position: absolute; inset: 0; background: rgba(0,0,0,.35);
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 4px; opacity: 0; transition: opacity .15s;
+  }
+  .image-chip:hover .chip-actions { opacity: 1; }
+  .image-chip .chip-actions button { border: none; background: rgba(255,255,255,.9); border-radius: 6px; font-size: .7rem; padding: 2px 5px; }
+  .image-chip .cover-badge {
+    position: absolute; top: 4px; left: 4px; background: var(--yru-primary); color: #fff;
+    font-size: .65rem; padding: 1px 6px; border-radius: 6px;
+  }
 </style>
