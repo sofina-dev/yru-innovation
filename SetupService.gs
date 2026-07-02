@@ -172,3 +172,73 @@ function seedDemoSubmissions() {
   Logger.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+/**
+ * One-time reorganization: moves the Database spreadsheet and the Apps
+ * Script project itself into the user's existing Drive folder structure,
+ * and repoints future participant image uploads to land in 02_Media
+ * instead of the auto-created fallback folder. Safe to re-run.
+ */
+const PROJECT_ROOT_FOLDER_ID_ = '181y9Lc03IlnYBXFqWKgS_1Ki82C65R93';
+
+function getOrCreateSubfolder_(parentFolder, name) {
+  const existing = parentFolder.getFoldersByName(name);
+  return existing.hasNext() ? existing.next() : parentFolder.createFolder(name);
+}
+
+function moveFileToFolder_(file, targetFolder) {
+  const parents = file.getParents();
+  while (parents.hasNext()) {
+    parents.next().removeFile(file);
+  }
+  targetFolder.addFile(file);
+}
+
+function organizeProjectFiles() {
+  const root = DriveApp.getFolderById(PROJECT_ROOT_FOLDER_ID_);
+  const systemFolder = getOrCreateSubfolder_(root, '00_System');
+  const databaseFolder = getOrCreateSubfolder_(root, '01_Database');
+  const mediaFolder = getOrCreateSubfolder_(root, '02_Media');
+
+  const result = { moved: [] };
+
+  const ssFile = DriveApp.getFileById(getSpreadsheetId_());
+  moveFileToFolder_(ssFile, databaseFolder);
+  result.moved.push('Spreadsheet (' + ssFile.getName() + ') -> 01_Database');
+
+  try {
+    const scriptFile = DriveApp.getFileById(ScriptApp.getScriptId());
+    moveFileToFolder_(scriptFile, systemFolder);
+    result.moved.push('Apps Script project -> 00_System');
+  } catch (error) {
+    result.scriptMoveError = error.message;
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  const oldFolderId = props.getProperty('UPLOAD_FOLDER_ID');
+  if (oldFolderId && oldFolderId !== mediaFolder.getId()) {
+    try {
+      const oldFolder = DriveApp.getFolderById(oldFolderId);
+      const files = oldFolder.getFiles();
+      while (files.hasNext()) {
+        const file = files.next();
+        moveFileToFolder_(file, mediaFolder);
+        result.moved.push('อัปโหลด: ' + file.getName() + ' -> 02_Media');
+      }
+      if (!oldFolder.getFiles().hasNext() && !oldFolder.getFolders().hasNext()) {
+        oldFolder.setTrashed(true);
+        result.moved.push('ลบโฟลเดอร์เก่าที่ว่างเปล่าแล้ว');
+      }
+    } catch (error) {
+      result.oldFolderError = error.message;
+    }
+  }
+
+  props.setProperty('UPLOAD_FOLDER_ID', mediaFolder.getId());
+  result.databaseFolderUrl = databaseFolder.getUrl();
+  result.mediaFolderUrl = mediaFolder.getUrl();
+  result.systemFolderUrl = systemFolder.getUrl();
+
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
