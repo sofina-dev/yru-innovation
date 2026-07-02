@@ -35,8 +35,10 @@
           '<div class="mb-3"><label class="form-label">สภาพปัญหา / ที่มาของแนวคิด</label><textarea class="form-control" name="problemStatement" rows="3">' + esc(existing ? existing.problemStatement : '') + '</textarea></div>' +
           '<div class="mb-3"><label class="form-label">แนวคิด / วิธีการดำเนินการ</label><textarea class="form-control" name="solutionDescription" rows="3">' + esc(existing ? existing.solutionDescription : '') + '</textarea></div>' +
           '<div class="mb-3"><label class="form-label">ผลลัพธ์ / ประโยชน์ที่ได้รับ</label><textarea class="form-control" name="impactBenefit" rows="3">' + esc(existing ? existing.impactBenefit : '') + '</textarea></div>' +
-          '<div class="mb-3"><label class="form-label">ไฟล์แนบ (ถ้ามี — ไม่บังคับ)</label><input class="form-control" type="file" id="attachmentInput">' +
-            '<div class="form-text" id="attachmentStatus">' + (existing && existing.attachmentName ? 'ไฟล์ปัจจุบัน: ' + esc(existing.attachmentName) : 'ยังไม่มีไฟล์แนบ') + '</div></div>' +
+          '<div class="mb-3"><label class="form-label">รูปภาพหลักของผลงาน (ไม่บังคับ — ใช้แสดงเป็นภาพปกในหน้าเผยแพร่)</label>' +
+            '<input class="form-control" type="file" accept="image/*" id="attachmentInput">' +
+            '<img class="attachment-preview" id="attachmentPreview" src="' + esc(existing ? existing.attachmentUrl || '' : '') + '" style="' + (existing && existing.attachmentUrl ? 'display:block' : '') + '">' +
+            '<div class="form-text" id="attachmentStatus">' + (existing && existing.attachmentName ? 'รูปปัจจุบัน: ' + esc(existing.attachmentName) : 'ยังไม่มีรูปภาพ') + '</div></div>' +
           '<div class="d-flex gap-2 mt-4">' +
             '<button class="btn btn-outline-secondary" type="submit" name="mode" value="draft">บันทึกร่าง</button>' +
             '<button class="btn btn-primary" type="submit" name="mode" value="submit">ส่งผลงาน</button>' +
@@ -48,8 +50,12 @@
       document.getElementById('attachmentInput').addEventListener('change', function (e) {
         var file = e.target.files[0];
         if (!file) return;
+        if (!file.type.startsWith('image/')) { toast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'danger'); e.target.value = ''; return; }
         if (file.size > 10 * 1024 * 1024) { toast('ไฟล์ต้องมีขนาดไม่เกิน 10MB', 'danger'); e.target.value = ''; return; }
         var statusEl = document.getElementById('attachmentStatus');
+        var previewEl = document.getElementById('attachmentPreview');
+        previewEl.src = URL.createObjectURL(file);
+        previewEl.style.display = 'block';
         statusEl.textContent = 'กำลังอัปโหลด ' + file.name + ' ...';
         var reader = new FileReader();
         reader.onload = function () {
@@ -90,7 +96,11 @@
         '<button class="btn btn-sm btn-outline-danger" data-delete="' + esc(item.submissionId) + '">ลบ</button>'
       : '<span class="text-muted small">ไม่สามารถแก้ไขได้หลังส่งผลงานแล้ว</span>';
 
-    return '<div class="col-md-6"><div class="card card-item"><div class="card-body">' +
+    var cover = item.attachmentUrl
+      ? '<div class="card-img-wrap"><img src="' + esc(item.attachmentUrl) + '" alt=""></div>'
+      : '';
+
+    return '<div class="col-md-6"><div class="card card-item">' + cover + '<div class="card-body">' +
       '<span class="badge bg-' + badge + ' mb-2">' + esc(STATUS_LABELS[item.status] || item.status) + '</span>' + award +
       '<h5>' + esc(item.title) + '</h5>' +
       '<p class="text-muted small mb-2">อัปเดตล่าสุด ' + fmtDate(item.updatedAt) + '</p>' +

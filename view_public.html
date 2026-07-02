@@ -7,13 +7,19 @@
     return '<span class="badge badge-award position-absolute top-0 end-0 m-2"><i class="bi bi-trophy-fill me-1"></i>' + esc(awardStatus) + '</span>';
   }
 
+  function coverImageHtml(url) {
+    return url
+      ? '<img src="' + esc(url) + '" alt="">'
+      : '<div class="card-img-placeholder"><i class="bi bi-image"></i></div>';
+  }
+
   function galleryCardHtml(item) {
     var excerptSource = item.problemStatement || '';
     var excerpt = excerptSource.slice(0, 120) + (excerptSource.length > 120 ? '…' : '');
     return '<div class="col-md-6 col-lg-4">' +
       '<a href="#/item/' + encodeURIComponent(item.submissionId) + '" class="text-decoration-none text-reset">' +
       '<div class="card card-item position-relative">' +
-        awardBadge(item.awardStatus) +
+        '<div class="card-img-wrap">' + coverImageHtml(item.attachmentUrl) + awardBadge(item.awardStatus) + '</div>' +
         '<div class="card-body">' +
           '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' +
           '<h5 class="card-title">' + esc(item.title) + '</h5>' +
@@ -62,19 +68,19 @@
   function renderDetail(id) {
     setLoading();
     api('getDetail', id).then(function (item) {
-      var attachment = item.attachmentUrl
-        ? '<a class="btn btn-outline-primary btn-sm mt-3" target="_blank" rel="noopener" href="' + esc(item.attachmentUrl) + '"><i class="bi bi-paperclip"></i> ' + esc(item.attachmentName || 'เอกสารแนบ') + '</a>'
+      var cover = item.attachmentUrl
+        ? '<img class="detail-cover" src="' + esc(item.attachmentUrl) + '" alt="">'
         : '';
       setView(
         '<a href="#/" class="btn btn-link px-0 mb-3"><i class="bi bi-arrow-left"></i> กลับไปคลังผลงาน</a>' +
         '<div class="card card-item"><div class="card-body p-4">' +
+          cover +
           (item.awardStatus ? '<span class="badge badge-award mb-3"><i class="bi bi-trophy-fill me-1"></i>' + esc(item.awardStatus) + '</span><br>' : '') +
           '<span class="badge bg-primary-subtle text-primary mb-2">' + esc(item.categoryLabel || item.category) + '</span>' +
           '<h2 class="fw-bold">' + esc(item.title) + '</h2>' +
           detailBlockHtml('สภาพปัญหา / ที่มาของแนวคิด', item.problemStatement) +
           detailBlockHtml('แนวคิด / วิธีการดำเนินการ', item.solutionDescription) +
           detailBlockHtml('ผลลัพธ์ / ประโยชน์ที่ได้รับ', item.impactBenefit) +
-          attachment +
         '</div></div>'
       );
     }).catch(function (err) {

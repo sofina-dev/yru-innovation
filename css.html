@@ -1,14 +1,15 @@
 <style>
   :root {
-    --yru-primary: #0f4c81;
-    --yru-primary-dark: #0a3660;
+    --yru-primary: #b1567a;
+    --yru-primary-dark: #833f5c;
     --yru-gold: #c9a227;
-    --yru-bg: #f5f7fa;
+    --yru-bg: #f5f1f2;
     --yru-surface: #ffffff;
-    --yru-text: #1f2933;
-    --yru-muted: #6b7280;
+    --yru-text: #332b2e;
+    --yru-muted: #8a7f84;
+    --yru-gray: #6b7280;
     --bs-primary: var(--yru-primary);
-    --bs-primary-rgb: 15, 76, 129;
+    --bs-primary-rgb: 177, 86, 122;
     --bs-body-font-family: 'Noto Sans Thai', 'Kanit', system-ui, sans-serif;
   }
 
@@ -38,21 +39,60 @@
   .navbar-yru .nav-link.active, .navbar-yru .nav-link:hover { opacity: 1; }
 
   .hero-band {
-    background: linear-gradient(135deg, var(--yru-primary) 0%, var(--yru-primary-dark) 100%);
+    background: linear-gradient(135deg, var(--yru-primary) 0%, var(--yru-gray) 130%);
     color: #fff;
     border-radius: 0 0 28px 28px;
     padding: 2.5rem 1rem 3rem;
   }
-  .hero-band .eyebrow { color: var(--yru-gold); font-weight: 600; letter-spacing: .04em; }
+  .hero-band .eyebrow { color: #f3d3de; font-weight: 600; letter-spacing: .04em; }
 
   .card-item {
     border: none;
     border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(15, 76, 129, .08);
+    box-shadow: 0 6px 20px rgba(177, 86, 122, .12);
     transition: transform .15s ease, box-shadow .15s ease;
     height: 100%;
+    overflow: hidden;
   }
-  .card-item:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(15, 76, 129, .14); }
+  .card-item:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(177, 86, 122, .2); }
+
+  .card-img-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: linear-gradient(135deg, #e7dde1, #cfc5ca);
+    overflow: hidden;
+  }
+  .card-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .card-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a9969f;
+    font-size: 2rem;
+  }
+  .detail-cover {
+    width: 100%;
+    max-height: 420px;
+    object-fit: cover;
+    border-radius: 14px;
+    margin-bottom: 1.5rem;
+  }
+  .attachment-preview {
+    width: 100%;
+    max-width: 320px;
+    border-radius: 12px;
+    margin-top: .5rem;
+    display: none;
+    border: 1px solid #e7dde1;
+  }
 
   .badge-award {
     background: linear-gradient(120deg, var(--yru-gold), #e6c34a);
@@ -87,6 +127,7 @@
   .btn-primary:hover { background-color: var(--yru-primary-dark); border-color: var(--yru-primary-dark); }
   .text-primary { color: var(--yru-primary) !important; }
   .nav-pills .nav-link.active { background-color: var(--yru-primary); }
+  .bg-primary-subtle { background-color: #f1dde5 !important; }
 
   footer.app-footer {
     color: var(--yru-muted);
