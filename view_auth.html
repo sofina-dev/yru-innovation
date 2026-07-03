@@ -47,6 +47,7 @@
           '<div class="mb-3"><label class="form-label">รหัสผ่าน (อย่างน้อย 8 ตัวอักษร)</label><input type="password" class="form-control" name="password" required minlength="8"></div>' +
           '<button class="btn btn-primary w-100" type="submit">ลงทะเบียน</button>' +
         '</form>';
+      initOrgAutocomplete('regOrganization');
       pane.querySelector('#registerForm').addEventListener('submit', function (e) {
         e.preventDefault();
         var form = e.target;

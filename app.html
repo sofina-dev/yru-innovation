@@ -66,12 +66,39 @@
   ];
 
   function organizationFieldHtml(id, label, value) {
-    return '<div class="mb-3"><label class="form-label">' + esc(label) + '</label>' +
-      '<input class="form-control" list="' + id + '_list" name="organization" id="' + id + '" ' +
+    return '<div class="mb-3 autocomplete-wrap">' +
+      '<label class="form-label">' + esc(label) + '</label>' +
+      '<input class="form-control" autocomplete="off" name="organization" id="' + id + '" ' +
         'placeholder="พิมพ์เพื่อค้นหาหน่วยงาน หรือพิมพ์ชื่อใหม่ถ้าไม่มีในรายการ" value="' + esc(value || '') + '">' +
-      '<datalist id="' + id + '_list">' +
-        YRU_ORGANIZATIONS.map(function (name) { return '<option value="' + esc(name) + '">'; }).join('') +
-      '</datalist></div>';
+      '<div class="autocomplete-list" id="' + id + '_list"></div>' +
+    '</div>';
+  }
+
+  function initOrgAutocomplete(inputId) {
+    var input = document.getElementById(inputId);
+    var list = document.getElementById(inputId + '_list');
+    if (!input || !list) return;
+
+    function renderOptions(query) {
+      var q = query.trim().toLowerCase();
+      var matches = (q ? YRU_ORGANIZATIONS.filter(function (name) { return name.toLowerCase().indexOf(q) !== -1; }) : YRU_ORGANIZATIONS).slice(0, 8);
+      if (!matches.length) { list.classList.remove('is-open'); list.innerHTML = ''; return; }
+      list.innerHTML = matches.map(function (name) {
+        return '<div class="autocomplete-item" data-value="' + esc(name) + '">' + esc(name) + '</div>';
+      }).join('');
+      list.classList.add('is-open');
+      list.querySelectorAll('.autocomplete-item').forEach(function (item) {
+        item.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          input.value = item.getAttribute('data-value');
+          list.classList.remove('is-open');
+        });
+      });
+    }
+
+    input.addEventListener('focus', function () { renderOptions(input.value); });
+    input.addEventListener('input', function () { renderOptions(input.value); });
+    input.addEventListener('blur', function () { list.classList.remove('is-open'); });
   }
 
   var STATUS_LABELS = { draft: 'ฉบับร่าง', submitted: 'ส่งแล้ว รอพิจารณา', published: 'เผยแพร่แล้ว' };

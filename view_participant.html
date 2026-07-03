@@ -163,6 +163,7 @@
 
       renderResponsiblePeople(existing && existing.responsiblePeople && existing.responsiblePeople.length ? existing.responsiblePeople : [data.user.displayName]);
       renderImageChips();
+      initOrgAutocomplete('f_organization');
 
       RICH_FIELDS.forEach(function (field) {
         _quillEditors[field.key] = createQuillEditor('quill_' + field.key, existing ? existing[field.key] : '');

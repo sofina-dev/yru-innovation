@@ -195,4 +195,33 @@
     position: absolute; top: 4px; left: 4px; background: var(--yru-primary); color: #fff;
     font-size: .65rem; padding: 1px 6px; border-radius: 6px;
   }
+
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-list {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    margin-top: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--yru-surface);
+    border: 1px solid #e7dde1;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(51, 43, 46, .15);
+  }
+  .autocomplete-list.is-open { display: block; }
+  .autocomplete-item {
+    padding: .55rem .9rem;
+    cursor: pointer;
+    font-size: .92rem;
+    border-bottom: 1px solid #f3eef1;
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item:active {
+    background: var(--yru-primary);
+    color: #fff;
+  }
 </style>
