@@ -242,3 +242,39 @@ function organizeProjectFiles() {
   Logger.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+/**
+ * One-time helper: seeds a single test participant account with a fixed
+ * username/password for manual QA. Bypasses register()'s domain check
+ * since it's invoked directly by an admin, not through the public form.
+ * Safe to re-run — updates the password if the account already exists.
+ */
+function createTestParticipant() {
+  const username = 'yru_tester01';
+  const password = '12345678';
+  const email = 'yru.tester01@gmail.com';
+
+  const existing = findRow_(SHEET_NAMES.USERS, 'username', username);
+  const salt = Utilities.getUuid();
+  const now = new Date();
+
+  upsertRow_(SHEET_NAMES.USERS, 'user_id', {
+    user_id: existing ? existing.user_id : 'USR-' + Utilities.getUuid().slice(0, 8).toUpperCase(),
+    username: username,
+    password_hash: hashPassword_(salt, password),
+    password_salt: salt,
+    display_name: existing ? existing.display_name : 'ผู้ทดสอบระบบ',
+    email: email,
+    role: 'participant',
+    assigned_category: '',
+    organization: existing ? existing.organization : '',
+    status: 'active',
+    created_at: existing ? existing.created_at : now,
+    updated_at: now,
+    last_login_at: existing ? existing.last_login_at : ''
+  });
+
+  const result = { username: username, password: password, email: email };
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
