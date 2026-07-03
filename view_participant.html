@@ -140,7 +140,7 @@
         '<form id="submitForm">' +
           textField('f_title', 'ชื่อผลงาน', existing ? existing.title : '') +
           '<div class="mb-3"><label class="form-label">ประเด็นการจัดการความรู้</label><select class="form-select" id="f_category">' + categorySelectHtml(data.config.categories, existing ? existing.category : '') + '</select></div>' +
-          textField('f_organization', 'หน่วยงาน', existing ? existing.organization : data.user.organization) +
+          organizationFieldHtml('f_organization', 'หน่วยงาน', existing ? existing.organization : data.user.organization) +
           '<label class="form-label">ผู้รับผิดชอบ</label>' +
           '<div id="responsibleList"></div>' +
           '<button type="button" class="btn btn-sm btn-outline-primary mb-3" id="btnAddPerson"><i class="bi bi-plus-lg"></i> เพิ่มผู้รับผิดชอบ</button>' +
